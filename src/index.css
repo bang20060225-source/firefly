@@ -1,0 +1,160 @@
+@import 'tailwindcss';
+
+/*
+  반딧불이 디자인 기본값 (초기 시안)
+  색은 아래 토큰만 바꾸면 화면 전체에 반영된다.
+*/
+@theme {
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+    'Noto Sans KR', 'Noto Sans CJK KR', 'Malgun Gothic', sans-serif;
+
+  /* 밤하늘: 너무 어둡지 않은 푸른 남색 */
+  --color-night-950: #151b33;
+  --color-night-900: #1e2645;
+  --color-night-800: #283158;
+  --color-night-700: #343f6d;
+  --color-night-600: #4a5688;
+  --color-night-300: #a9b2d6;
+  --color-night-200: #cdd3ec;
+  --color-night-100: #e8ebf7;
+
+  /* 불빛: 따뜻한 호박색 */
+  --color-glow-500: #ffc861;
+  --color-glow-400: #ffd27a;
+  --color-glow-300: #ffe3a3;
+  --color-glow-100: #fff6df;
+
+  /* 방 안: 포근한 종이색 */
+  --color-paper-50: #fbf8f2;
+  --color-paper-100: #f4eee3;
+  --color-paper-200: #e8dfcf;
+  --color-ink-700: #3d3a4a;
+  --color-ink-500: #6a6577;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-night-950);
+    color: var(--color-night-100);
+    -webkit-text-size-adjust: 100%;
+    word-break: keep-all;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background-color: var(--color-night-950);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-glow-400);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+}
+
+/* ── 움직임 ───────────────────────────────── */
+
+@keyframes firefly-drift {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translate(0, 0);
+  }
+  50% {
+    transform: translate(-50%, -50%) translate(3px, -4px);
+  }
+}
+
+@keyframes firefly-breathe {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.18);
+  }
+}
+
+@keyframes ambient-wave {
+  0% {
+    transform: translate(-50%, -50%) scale(0.05);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+/* 움직임 줄이기: 크기 변화 없이 은은하게 밝아졌다가 사라진다 */
+@keyframes ambient-glow {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes window-light-on {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-firefly {
+  animation:
+    firefly-drift 7s ease-in-out infinite,
+    firefly-breathe 4s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out both;
+}
+
+.animate-window-on {
+  animation: window-light-on 1.6s ease-out both;
+}
+
+/* 설정의 '움직임 줄이기' 또는 기기 설정(prefers-reduced-motion)이 켜져 있으면 움직임을 멈춘다 */
+.reduce-motion .animate-firefly,
+.reduce-motion .animate-fade-in {
+  animation: none;
+}
+
+.reduce-motion .animate-window-on {
+  animation-duration: 0.01s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-firefly,
+  .animate-fade-in {
+    animation: none;
+  }
+
+  .animate-window-on {
+    animation-duration: 0.01s;
+  }
+}
