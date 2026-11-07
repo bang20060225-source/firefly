@@ -110,11 +110,13 @@ export function AppProvider({ children, allowDemoTestConsent }: { children: Reac
   }, [])
 
   const grantDemoTestConsent = useMemo(() => {
-    if (!allowDemoTestConsent || !demoBackend) return null
+    // 안쪽 함수에서도 '비어 있지 않음'이 유지되도록 지역 상수에 담아 둔다
+    const demo = demoBackend
+    if (!allowDemoTestConsent || !demo) return null
     return async () => {
       removeKey(UNDER_14_KEY)
-      await demoBackend.startAnonymous()
-      const gate = await demoBackend.grantDemoTestConsent()
+      await demo.startAnonymous()
+      const gate = await demo.grantDemoTestConsent()
       await enterWithGate(gate)
     }
   }, [allowDemoTestConsent, enterWithGate])
