@@ -3,8 +3,9 @@
 // 공개 설정은 접어 두어 방이 설정 화면처럼 보이지 않게 한다.
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { BookDialog } from '../components/BookDialog'
 import { RoomScene, type RoomToy } from '../components/sky/RoomScene'
-import { playSound } from '../lib/sound'
+import { playSound, type SoundKind } from '../lib/sound'
 import { Button, LiveMessage } from '../components/ui'
 import { VisibilityPicker } from '../components/VisibilityPicker'
 import { describeRemaining, remainingMs } from '../lib/lightRules'
@@ -18,7 +19,7 @@ const MODE_LABEL: Record<VisibilityMode, string> = {
 }
 
 // 장난감을 눌렀을 때 나오는 한 줄. 재촉하거나 평가하지 않는, 조금 하찮은 말들.
-const TOY_LINES: Record<Exclude<RoomToy, 'lamp'>, string[]> = {
+const TOY_LINES: Record<Exclude<RoomToy, 'lamp' | 'book'>, string[]> = {
   sock: ['양말 한 짝이 짝을 찾고 있어요.', '양말이 폴짝 뛰었어요. 별일은 없어요.', '나중에 치워도 괜찮아요.'],
   plant: ['잎이 살랑 흔들렸어요.', '화분은 오늘도 천천히 자라는 중이에요.', '물은 생각날 때 주면 돼요.'],
   mug: ['따뜻한 김이 피어올라요.', '차는 천천히 식어도 괜찮아요.', '한 모금 쉬어 가요.'],
@@ -37,12 +38,21 @@ export function MyRoom() {
   const [toyLine, setToyLine] = useState<string | null>(null)
   const lineIndex = useRef<Record<string, number>>({})
   const captionTimer = useRef<number | undefined>(undefined)
+  const [bookOpen, setBookOpen] = useState(false)
   useEffect(() => () => window.clearTimeout(captionTimer.current), [])
+  const soundOn = settings?.soundEnabled ?? false
 
   function pressToy(toy: RoomToy) {
-    playSound('tap', settings?.soundEnabled ?? false)
+    // 물건마다 다른 소리 (누를 때마다 조금씩 달라진다)
+    const sound: SoundKind = toy === 'lamp' ? (lampOn ? 'lampOff' : 'lampOn') : toy
+    playSound(sound, soundOn)
     setActiveToy({ toy, key: Date.now() })
     window.clearTimeout(captionTimer.current)
+    if (toy === 'book') {
+      setToyLine(null)
+      setBookOpen(true)
+      return
+    }
     if (toy === 'lamp') {
       setLampOn((on) => !on)
       setToyLine(null)
@@ -129,6 +139,8 @@ export function MyRoom() {
           </div>
         </details>
       </main>
+
+      <BookDialog open={bookOpen} onClose={() => setBookOpen(false)} onTurn={() => playSound('page', soundOn)} />
     </div>
   )
 }

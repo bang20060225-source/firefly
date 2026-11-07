@@ -113,10 +113,11 @@ export function LoadingState({ label = '불러오는 중이에요' }: { label?: 
   )
 }
 
-export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+export function ErrorState({ message, detail, onRetry }: { message: string; detail?: string | null; onRetry?: () => void }) {
   return (
     <div role="alert" className="mx-5 flex flex-col items-center gap-4 rounded-3xl bg-night-800/80 px-6 py-8 text-center">
       <p className="text-[15px] leading-relaxed text-night-100">{message}</p>
+      {detail && <p className="-mt-2 break-all font-mono text-[11px] text-night-300">{detail}</p>}
       {onRetry && (
         <Button variant="soft" onClick={onRetry}>
           다시 시도하기

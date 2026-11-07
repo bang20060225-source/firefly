@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { activeLights, AMBIENT_COOLDOWN_MS, AMBIENT_WAVE_DURATION_MS } from '../lib/lightRules'
 import { readJson, safeSession, writeJson } from '../lib/storage'
 import type { FireflyBackend, SkyEvent } from '../services/backend'
-import { toFireflyError, type FireflyErrorCode } from '../services/backend'
+import { errorDetail, toFireflyError, type FireflyErrorCode } from '../services/backend'
 import type { ConnectionState, SharedLight, UserSettings } from '../types'
 
 /** 화면을 다시 그려 페이드·만료를 반영하는 간격. 1분이면 충분히 부드럽다 */
@@ -18,6 +18,8 @@ export type SkyState = {
   now: () => number
   loading: boolean
   error: FireflyErrorCode | null
+  /** 오류의 기술적인 내용 (서버 설정 문제를 찾을 때 도움) */
+  errorDetail: string | null
   reload: () => Promise<void>
   publish: () => Promise<{ status: 'published' | 'already_active'; light: SharedLight }>
   cancel: () => Promise<void>
@@ -37,6 +39,7 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
   const [connection, setConnection] = useState<ConnectionState>('connecting')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<FireflyErrorCode | null>(null)
+  const [errorInfo, setErrorInfo] = useState<string | null>(null)
   const [, setTick] = useState(0)
 
   const offsetRef = useRef(0)
@@ -69,9 +72,11 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
       setLights(snapshot.lights)
       setMyLight(mine)
       setError(null)
+      setErrorInfo(null)
     } catch (err) {
       // 오류를 숨기지 않는다: 화면에 그대로 알린다
       setError(toFireflyError(err).code)
+      setErrorInfo(errorDetail(err))
     } finally {
       setLoading(false)
     }
@@ -216,6 +221,7 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
     now,
     loading,
     error,
+    errorDetail: errorInfo,
     reload,
     publish,
     cancel,

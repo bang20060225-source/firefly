@@ -7,13 +7,14 @@ import { usePrefersReducedMotion } from '../app/usePrefersReducedMotion'
 import { Button, Card, ConfirmDialog, LiveMessage, ScreenHeader, Toggle } from '../components/ui'
 import { VisibilityPicker } from '../components/VisibilityPicker'
 import { config } from '../config'
+import { playSound } from '../lib/sound'
 import { clearAllFireflyData, removeKey } from '../lib/storage'
 import { errorMessage } from '../services/backend'
 import type { UserSettings } from '../types'
 import { AccountSection } from './AccountSection'
 
 export function Settings() {
-  const { settings, updateSettings, restartFromScratch } = useApp()
+  const { settings, updateSettings, restartFromScratch, musicEnabled, setMusicEnabled } = useApp()
   const systemReduceMotion = usePrefersReducedMotion()
   const [message, setMessage] = useState<string | null>(null)
   const [dialog, setDialog] = useState<'data' | 'account' | null>(null)
@@ -52,6 +53,7 @@ export function Settings() {
     setBusy(true)
     try {
       await backend.deleteAccount()
+      setMusicEnabled(false)
       clearAllFireflyData()
       setDialog(null)
       restartFromScratch()
@@ -87,10 +89,19 @@ export function Settings() {
               onChange={(value) => void toggle('reduceMotion', value)}
             />
             <Toggle
-              label="소리"
-              description="불빛을 보태거나 온기를 보낼 때, 방 안 물건을 누를 때 아주 작은 소리가 나요."
+              label="배경음"
+              description="잔잔한 음악이 흘러요. 시간대에 따라 분위기가 바뀌고, 밤에는 풀벌레 소리가 조금 섞여요. 이 기기에만 저장돼요."
+              checked={musicEnabled}
+              onChange={(value) => setMusicEnabled(value)}
+            />
+            <Toggle
+              label="효과음"
+              description="불빛을 보태거나 온기를 보낼 때, 방 안 물건을 누를 때 작은 소리가 나요. 휴대폰이 무음 모드면 들리지 않을 수 있어요."
               checked={settings.soundEnabled}
-              onChange={(value) => void toggle('soundEnabled', value)}
+              onChange={(value) => {
+                if (value) playSound('tap', true)
+                void toggle('soundEnabled', value)
+              }}
             />
             <Toggle
               label="진동"
