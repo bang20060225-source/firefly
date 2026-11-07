@@ -1,7 +1,7 @@
 // 도움받기 — 사용자가 원할 때 전문 지원기관을 확인하는 화면
 import { navigate } from '../app/useHashRoute'
 import { Button, ScreenHeader } from '../components/ui'
-import { HELP_CONTACTS, HELP_INFO_VERIFIED } from '../data/helpContacts'
+import { HELP_CONTACTS, HELP_INFO_VERIFIED, VERIFIED_ON } from '../data/helpContacts'
 
 export function HelpList({ highlightYouth = false }: { highlightYouth?: boolean }) {
   const contacts = highlightYouth
@@ -47,7 +47,14 @@ export function HelpList({ highlightYouth = false }: { highlightYouth?: boolean 
           </li>
         ))}
       </ul>
-      {!HELP_INFO_VERIFIED && (
+      {HELP_INFO_VERIFIED ? (
+        VERIFIED_ON && (
+          <p className="mt-3 text-[12px] leading-relaxed text-night-300">
+            ※ 번호와 운영시간은 {VERIFIED_ON.replaceAll('-', '.')} 공식 기관 자료로 확인했어요. 바뀔 수 있으니 위급할 땐 119에
+            연락해 주세요.
+          </p>
+        )
+      ) : (
         <p className="mt-3 text-[12px] leading-relaxed text-night-300">
           ※ 연락처와 운영시간은 출시 전 공식 기관 자료로 다시 확인하는 중이에요. 실제와 다를 수 있어요.
         </p>
