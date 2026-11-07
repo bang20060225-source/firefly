@@ -1,7 +1,7 @@
 // 실제 Supabase 서버와 연결하는 백엔드.
 // 브라우저에는 publishable key 만 있고, 권한 확인은 모두 서버(RLS·서버 함수)가 한다.
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 import type { AgeCategory, AgeGate, ConnectionState, SharedLight, UserSettings } from '../types'
 import { DEFAULT_SETTINGS } from '../types'
 import {
@@ -46,7 +46,7 @@ function redirectUrl(): string {
 }
 
 export function createSupabaseBackend(url: string, publishableKey: string): FireflyBackend {
-  const supabase: SupabaseClient = createClient(url, publishableKey, {
+  const supabase = createClient(url, publishableKey, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   })
 

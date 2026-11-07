@@ -23,8 +23,10 @@ export function Settings() {
 
   async function toggle(key: keyof Pick<UserSettings, 'reduceMotion' | 'soundEnabled' | 'vibrationEnabled'>, value: boolean) {
     setMessage(null)
+    const patch: Partial<UserSettings> = {}
+    patch[key] = value
     try {
-      await updateSettings({ [key]: value })
+      await updateSettings(patch)
     } catch (err) {
       setMessage(errorMessage(err))
     }

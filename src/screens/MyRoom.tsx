@@ -17,7 +17,7 @@ export function MyRoom() {
     setBusy(true)
     try {
       await sky.cancel()
-      setMessage('공개를 취소했어요. 밤하늘에서 내 불빛이 사라졌어요.')
+      setMessage('불빛을 거뒀어요. 밤하늘에서 내 불빛이 사라졌어요.')
     } catch (err) {
       setMessage(errorMessage(err))
     } finally {
@@ -50,7 +50,7 @@ export function MyRoom() {
               <p className="text-[15px]">지금 공동 밤하늘에 내 불빛이 있어요.</p>
               <p className="mt-1 text-[13px] text-ink-500">{describeRemaining(remainingMs(sky.myLight.expiresAt, sky.now()))}</p>
               <Button variant="paper" className="mt-3 w-full" onClick={() => void cancel()} disabled={busy}>
-                {busy ? '취소하는 중…' : '공개 취소하기'}
+                {busy ? '거두는 중…' : '불빛 거두기'}
               </Button>
             </div>
           ) : (

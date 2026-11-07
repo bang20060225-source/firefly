@@ -66,6 +66,35 @@ describe('누적·연속 기록 없음', () => {
   })
 })
 
+describe('자리에서 할 수 있는 것만', () => {
+  const nearby = DAILY_ACTIONS.filter((a) => a.lowMobility)
+
+  it('범위를 좁히면 범위 안의 행동만 나온다', () => {
+    for (let day = 1; day <= 30; day++) {
+      const state = resolveTodayState(null, `2026-11-${String(day).padStart(2, '0')}`, nearby)
+      expect(nearby.some((a) => a.id === state.actionId)).toBe(true)
+    }
+  })
+
+  it('아직 안 한 행동이 범위 밖이면 범위 안의 행동으로 바뀐다', () => {
+    const saved: TodayActionState = { date: '2026-11-06', actionId: 'window', status: 'open' }
+    const next = resolveTodayState(saved, '2026-11-06', nearby)
+    expect(nearby.some((a) => a.id === next.actionId)).toBe(true)
+    expect(next.status).toBe('open')
+  })
+
+  it('이미 한 행동은 범위를 바꿔도 그대로 둔다', () => {
+    const saved: TodayActionState = { date: '2026-11-06', actionId: 'window', status: 'done' }
+    expect(resolveTodayState(saved, '2026-11-06', nearby)).toEqual(saved)
+  })
+
+  it('"다른 걸로"도 범위 안에서만 고른다', () => {
+    for (const r of [0, 0.4, 0.99]) {
+      expect(nearby.some((a) => a.id === pickAlternative('water', () => r, nearby).id)).toBe(true)
+    }
+  })
+})
+
 describe('행동 문구', () => {
   it('건강이나 치료 효과를 약속하는 단어가 없다', () => {
     const banned = ['치료', '효과', '낫', '회복', '우울', '진단', '건강해']

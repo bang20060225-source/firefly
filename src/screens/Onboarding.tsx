@@ -47,6 +47,11 @@ export function Onboarding({ startAt = 'splash' }: { startAt?: Step }) {
     return () => window.clearTimeout(timer)
   }, [step, reduceMotion])
 
+  // 단계가 바뀌면 화면 맨 위부터 보이게 한다 (앞 단계의 스크롤 위치가 남지 않도록)
+  useEffect(() => {
+    window.scrollTo({ top: 0 })
+  }, [step])
+
   async function start() {
     if (!age) return
     setBusy(true)

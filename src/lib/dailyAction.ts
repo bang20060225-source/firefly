@@ -53,10 +53,19 @@ export function findAction(id: string, actions: DailyAction[] = DAILY_ACTIONS): 
 /**
  * 저장된 상태를 오늘 기준으로 정리한다.
  * 날짜가 지난 기록은 이어 붙이지 않고 버린다 → 미완료가 쌓이지 않는다.
+ * pool: 지금 고를 수 있는 행동 범위 (예: 자리에서 할 수 있는 것만)
  */
-export function resolveTodayState(saved: TodayActionState | null, todayKey: string): TodayActionState {
+export function resolveTodayState(
+  saved: TodayActionState | null,
+  todayKey: string,
+  pool: DailyAction[] = DAILY_ACTIONS,
+): TodayActionState {
   if (saved && saved.date === todayKey && findAction(saved.actionId)) {
+    // 아직 하지 않은 행동이 지금 범위 밖이면 범위 안에서 다시 고른다. 이미 한(쉰) 기록은 바꾸지 않는다.
+    if (saved.status === 'open' && !findAction(saved.actionId, pool)) {
+      return { ...saved, actionId: pickActionForDate(todayKey, pool).id }
+    }
     return saved
   }
-  return { date: todayKey, actionId: pickActionForDate(todayKey).id, status: 'open' }
+  return { date: todayKey, actionId: pickActionForDate(todayKey, pool).id, status: 'open' }
 }

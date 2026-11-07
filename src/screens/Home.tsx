@@ -11,7 +11,7 @@ import { SkyLights } from '../components/sky/SkyLights'
 import { Button, ConfirmDialog, ErrorState, LiveMessage } from '../components/ui'
 import { config } from '../config'
 import { softVibrate } from '../lib/haptics'
-import { AMBIENT_COOLDOWN_MS, describeRemaining, remainingMs } from '../lib/lightRules'
+import { describeRemaining, remainingMs } from '../lib/lightRules'
 import { errorMessage, FireflyError } from '../services/backend'
 import type { ConnectionState } from '../types'
 
@@ -26,7 +26,7 @@ export function Home() {
   const today = useTodayAction()
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<'light' | 'wave' | null>(null)
-  const [waveResting, setWaveResting] = useState(false)
+  const waveResting = sky.waveResting
   const [privateInfoOpen, setPrivateInfoOpen] = useState(false)
 
   const nowMs = sky.now()
@@ -73,18 +73,20 @@ export function Home() {
       await sky.sendWave()
       softVibrate(settings?.vibrationEnabled ?? false)
       setMessage('밤하늘에 온기가 번졌어요.')
-      setWaveResting(true)
-      window.setTimeout(() => setWaveResting(false), AMBIENT_COOLDOWN_MS)
     } catch (err) {
-      if (err instanceof FireflyError && err.code === 'rate_limited') {
-        setWaveResting(true)
-        window.setTimeout(() => setWaveResting(false), AMBIENT_COOLDOWN_MS)
-      }
       setMessage(errorMessage(err))
     } finally {
       setBusy(null)
     }
   }
+
+  // 오늘의 작은 행동 카드: 쉬기로 했거나 이미 했으면 다시 권하지 않는다
+  const actionCard =
+    today.status === 'open'
+      ? { label: '오늘의 작은 행동 · 안 해도 괜찮아요', title: today.action.title }
+      : today.status === 'done'
+        ? { label: '오늘의 작은 행동', title: '오늘은 이걸로 충분해요' }
+        : { label: '오늘의 작은 행동', title: '오늘은 쉬어가요' }
 
   const skyEmpty = sky.lights.length === 0
   const connectionText = CONNECTION_TEXT[sky.connection]
@@ -195,8 +197,8 @@ export function Home() {
           className="mt-3 flex w-full items-center justify-between gap-3 rounded-3xl bg-paper-100 px-5 py-4 text-left text-ink-700"
         >
           <span>
-            <span className="block text-[12px] text-ink-500">오늘의 작은 행동 · 안 해도 괜찮아요</span>
-            <span className="mt-0.5 block text-[16px] font-medium">{today.action.title}</span>
+            <span className="block text-[12px] text-ink-500">{actionCard.label}</span>
+            <span className="mt-0.5 block text-[16px] font-medium">{actionCard.title}</span>
           </span>
           <span aria-hidden="true" className="text-ink-500">
             ›

@@ -1,7 +1,7 @@
 // 공통 UI 조각들. 색과 모양을 바꾸고 싶으면 여기와 src/index.css 의 토큰을 고치면 된다.
 import { useEffect, useId, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 
-type ButtonVariant = 'primary' | 'soft' | 'ghost' | 'danger' | 'paper'
+type ButtonVariant = 'primary' | 'soft' | 'ghost' | 'danger' | 'paper' | 'paperGhost'
 
 const buttonStyles: Record<ButtonVariant, string> = {
   primary:
@@ -10,6 +10,8 @@ const buttonStyles: Record<ButtonVariant, string> = {
   ghost: 'bg-transparent text-night-200 hover:bg-night-800/60 hover:text-night-100',
   danger: 'bg-transparent text-[#ffb4a8] ring-1 ring-[#ffb4a8]/50 hover:bg-[#ffb4a8]/10',
   paper: 'bg-ink-700 text-paper-50 hover:bg-ink-500 disabled:bg-paper-200 disabled:text-ink-500',
+  /** 밝은 종이 배경 위의 조용한 버튼 */
+  paperGhost: 'bg-transparent text-ink-700 hover:bg-paper-100',
 }
 
 export function Button({
