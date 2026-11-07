@@ -7,7 +7,7 @@ import { NightSky } from '../components/sky/NightSky'
 import { MyWindow } from '../components/sky/MyWindow'
 import { RoomScene } from '../components/sky/RoomScene'
 import { Village } from '../components/sky/Village'
-import { errorMessage } from '../services/backend'
+import { errorDetail, errorMessage } from '../services/backend'
 import type { AgeCategory } from '../types'
 
 const INTRO = [
@@ -41,6 +41,7 @@ export function Onboarding({ startAt = 'splash' }: { startAt?: Step }) {
   const [agreed, setAgreed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [detail, setDetail] = useState<string | null>(null)
 
   // 첫 화면은 잠깐만 보여주고 넘어간다 (눌러서 바로 넘어갈 수도 있다)
   useEffect(() => {
@@ -63,6 +64,7 @@ export function Onboarding({ startAt = 'splash' }: { startAt?: Step }) {
       navigate('sky')
     } catch (err) {
       setError(errorMessage(err))
+      setDetail(errorDetail(err))
       setBusy(false)
     }
   }
@@ -183,6 +185,7 @@ export function Onboarding({ startAt = 'splash' }: { startAt?: Step }) {
               </label>
             </div>
             <LiveMessage message={error} tone="warn" />
+            {detail && <p className="text-center break-all font-mono text-[11px] text-night-300">{detail}</p>}
             <div className="mt-2 flex flex-col gap-2">
               <Button disabled={!agreed || busy} onClick={() => void start()}>
                 {busy ? '공간을 준비하는 중…' : '익명으로 시작하기'}

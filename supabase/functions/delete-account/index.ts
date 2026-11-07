@@ -3,7 +3,9 @@
 // auth.users 와 연결된 on delete cascade 로 함께 지워진다.
 //
 // 서버 비밀 키는 이 함수 안에서만 쓰이고 브라우저로 나가지 않는다.
-// 배포: supabase functions deploy delete-account
+// 배포: Supabase 대시보드 → Edge Functions → Via Editor 에 이 파일을 붙여넣기 (또는 supabase functions deploy delete-account)
+// ⚠️ 함수 설정의 'Verify JWT' 는 끈다. 아래에서 Auth 서버에 토큰을 직접 확인하므로 안전하다.
+//    (새 JWT 서명 키를 쓰는 프로젝트에서도 문제없이 동작하게 하기 위함)
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 

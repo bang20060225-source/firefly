@@ -7,14 +7,14 @@
 
 ---
 
-## 지금 상태 (MVP 0.1)
+## 지금 상태 (MVP 0.6)
 
 | 구분 | 상태 |
 | --- | --- |
 | 화면 (온보딩, 밤하늘, 나의 방, 작은 행동, 설정, 도움받기, 개인정보 안내) | ✅ 구현, 브라우저에서 확인 |
 | DEMO 모드 (서버 없이 이 기기에서만 동작) | ✅ 동작 확인 |
 | 데이터베이스 · 보안 규칙 · 서버 함수 (`supabase/migrations`) | ✅ 작성, 로컬 PostgreSQL에서 테스트 통과 |
-| 실제 Supabase 프로젝트 연결 | ⏳ **아직 연결 안 됨** — 아래 "Supabase 연결하기" 필요 |
+| 실제 Supabase 프로젝트 연결 | ⏳ 연결 진행 중 — 아래 "Supabase 연결하기" 참고 |
 | 계정 탈퇴 Edge Function | ⏳ 작성됨, 배포·실행 확인 안 됨 |
 | 이메일 계정 연결 | ⏳ 코드 작성됨, 실제 메일 발송 확인 안 됨 |
 | 만 14세 미만 이용 | 🚫 **차단 상태** — 적법한 보호자 확인 수단이 준비될 때까지 열지 않음 |
@@ -31,9 +31,9 @@ DEMO 모드에서는 다른 사용자가 존재하지 않으며, 밤하늘에는
 | 화면 | 담긴 것 |
 | --- | --- |
 | 밤하늘 (홈) | 시간대에 따라 바뀌는 하늘(새벽·낮·저녁·밤), 오늘의 실제 달, 창문 마을(불 켜진 창문 = 누군가의 불빛), 떠다니는 불빛, 내 창문에서 떠오르는 불빛, 다른 사람의 온기가 닿았을 때의 조용한 알림 |
-| 나의 방 | 나만 보는 방 장면, 눌러 볼 수 있는 물건(스탠드·양말·화분·머그컵), 창밖에 비치는 내 불빛, 접어 둔 공개 설정 |
+| 나의 방 | 나만 보는 방 장면, 눌러 볼 수 있는 물건(스탠드·양말·화분·머그컵·책), 위로의 글귀가 적힌 작은 책, 창밖에 비치는 내 불빛, 접어 둔 공개 설정, 소리 버튼 |
 | 작은 행동 | 하루 한 개, 해봤어요·다른 걸로·오늘은 쉴래요, 자리에서 할 수 있는 것만 보기 |
-| 설정 | 공개 방식, 움직임 줄이기, 작은 소리(기본 꺼짐), 진동, 계정 연결, 삭제 |
+| 설정 | 공개 방식, 움직임 줄이기, 배경음·효과음 따로 켜고 끄기(기본 꺼짐), 진동, 계정 연결, 삭제 |
 | 도움받기 | 119·109·1577-0199·1388·지역 정신건강복지센터 |
 
 ---
@@ -65,57 +65,57 @@ npm run dev
 
 ---
 
-## Supabase 연결하기
+## Supabase 연결하기 (웹 화면만으로)
+
+Supabase를 연결하면 DEMO 모드가 꺼지고, 여러 사람이 **같은 밤하늘**을 보게 됩니다.
+터미널 없이 Supabase·Vercel 웹 화면에서만 진행할 수 있어요.
 
 ### 1. 프로젝트 만들기
+1. [supabase.com](https://supabase.com) → **Start your project** → GitHub 계정으로 로그인
+2. **New project** → 이름 `firefly`, 데이터베이스 비밀번호는 자동 생성(따로 보관), 지역은 **Northeast Asia (Seoul)**
+3. 무료(Free) 요금제로 충분합니다. 1주일 동안 아무도 쓰지 않으면 일시정지되고, 대시보드에서 다시 켤 수 있어요.
 
-1. [supabase.com](https://supabase.com)에서 새 프로젝트를 만듭니다.
-2. **Authentication → Sign In / Providers**
-   - **Allow anonymous sign-ins** 켜기 (익명 시작)
-   - **Allow manual linking** 켜기 (나중에 이메일 연결)
-   - 익명 가입 남용을 막기 위해 CAPTCHA(Turnstile) 설정을 권장합니다.
-3. **Authentication → URL Configuration**에 실제 서비스 주소와 `http://localhost:5173`을 추가합니다. (이메일 링크가 돌아올 주소)
-4. **Realtime → Settings**에서 **Allow public access를 끕니다.** (비공개 채널만 허용 → 로그인한 이용 가능 사용자만 밤하늘 방송을 받음)
+### 2. 데이터베이스 만들기 (SQL 한 번 붙여넣기)
+1. GitHub 저장소에서 `supabase/migrations/20261106000000_firefly_init.sql` 파일을 열고 **Copy raw file** 버튼으로 전체 복사
+2. Supabase 대시보드 → **SQL Editor** → **New query** → 붙여넣기 → **Run**
+3. `Success. No rows returned`가 나오면 완료
 
-### 2. 데이터베이스 만들기
+> ⚠️ `supabase/tests/local-supabase-shim.sql`은 **로컬 테스트 전용**입니다. Supabase에 붙여넣지 마세요.
 
-```bash
-npx supabase login
-npx supabase init          # 처음 한 번. 기존 migrations 폴더는 그대로 둡니다
-npx supabase link --project-ref <프로젝트-ref>
-npx supabase db push       # supabase/migrations 의 SQL을 적용
-```
+### 3. 로그인·실시간 설정
+- **Authentication → Sign In / Providers** → **Allow anonymous sign-ins** 켜기 (가입 없이 시작)
+- **Authentication → Rate Limits** → 같은 와이파이에서 여러 명이 동시에 시작한다면 익명 로그인 한도(기본: IP당 시간당 30회)를 늘리기
+- **Authentication → URL Configuration** → **Site URL**에 Vercel 주소(예: `https://firefly-xxxx.vercel.app`) 넣기
+- **Realtime → Settings → Channel restrictions** → 공개 채널 허용(public access) 끄기 (로그인한 이용자만 밤하늘 방송을 받도록)
 
-> ⚠️ `supabase/tests/local-supabase-shim.sql`은 **로컬 테스트 전용**입니다. 실제 프로젝트에 절대 적용하지 마세요.
+### 4. 계정 탈퇴 함수 만들기
+1. **Edge Functions** → **Deploy a new function** → **Via Editor**
+2. 함수 이름: `delete-account`
+3. 저장소의 `supabase/functions/delete-account/index.ts` 내용을 전부 붙여넣기
+4. **Deploy function**
+5. 함수 상세 화면에 **Enforce JWT Verification**(JWT 확인) 스위치가 있으면 **끄기** — 함수 안에서 로그인 토큰을 직접 확인합니다
 
-### 3. 계정 탈퇴 함수 배포
+서버 비밀 키는 Supabase가 함수 안에 자동으로 넣어 줍니다. 어디에도 직접 붙여 넣지 마세요.
 
-```bash
-npx supabase functions deploy delete-account
-```
-
-서버 비밀 키는 Supabase가 함수 안에 자동으로 넣어 줍니다. 직접 어디에도 붙여 넣을 필요가 없습니다.
-
-### 4. 환경변수 넣기
-
-```bash
-cp .env.example .env.local
-```
-
-`.env.local`을 열고 Supabase 대시보드 **Project Settings → API Keys**의 값을 넣습니다.
+### 5. Vercel에 주소와 키 넣기
+1. Supabase → **Project Settings → API Keys**(또는 **Connect** 버튼)에서 두 값을 확인
+   - Project URL: `https://xxxx.supabase.co`
+   - **Publishable key**: `sb_publishable_...` (예전 화면이라면 `anon` `public` 키)
+2. Vercel → 프로젝트 → **Settings → Environment Variables**에서 아래 두 개 추가 (Production, Preview 모두 체크)
 
 ```
 VITE_SUPABASE_URL=https://xxxx.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
-- `VITE_`로 시작하는 값은 브라우저에 그대로 보입니다. **publishable key만** 넣으세요.
-- `sb_secret_...`, `service_role` 키는 **절대** 넣지 마세요.
-- `.env.local`은 Git에 올라가지 않습니다 (`.gitignore`에 포함).
+3. **Deployments** → 가장 최근 배포의 **⋯ → Redeploy** (키는 빌드할 때 들어가므로 다시 배포해야 반영돼요)
 
-다시 `npm run dev`를 실행하면 DEMO 띠가 사라지고 실제 서버에 연결됩니다.
+- `sb_secret_...`, `service_role` 키는 **절대** 넣지 마세요. 브라우저에 그대로 노출됩니다.
+- 내 컴퓨터에서 Supabase 모드로 실행하려면 `.env.example`을 복사해 `.env.local`을 만들고 같은 두 값을 넣으면 됩니다.
 
----
+### 알아둘 점
+- **이메일 계정 연결**: Supabase 기본 메일 서버는 프로젝트 팀원 주소로만 메일을 보냅니다. 다른 사람도 쓰려면 Authentication → SMTP Settings에서 메일 서버를 따로 연결해야 해요.
+- 문제가 생기면 화면에 작은 회색 글씨로 기술적인 원인(예: `Anonymous sign-ins are disabled`)이 표시됩니다.
 
 ## Vercel 배포 준비
 
@@ -150,6 +150,20 @@ firefly/
 │  └─ tests/                  로컬 DB 보안 테스트
 └─ public/                    아이콘
 ```
+
+### 소리
+
+배경음과 효과음은 소리 파일 없이 브라우저가 바로 만듭니다. (`src/lib/audio/`)
+- `composer.ts`: 배경음 작곡 규칙 — 부드러운 피아노가 화음을 천천히 펼쳐 치고, 가끔 짧은 선율과 오르골 반짝임, 밤에는 풀벌레
+- `render.ts`: 피아노·오르골·풀벌레 소리를 실제로 만드는 부분
+- `sfx.ts`: 물건마다 다른 효과음
+- `engine.ts`: 켜고 끄기, 화면을 벗어나면 멈춤
+
+소리는 처음에 모두 꺼져 있어요(갑자기 소리가 나지 않게). 홈과 나의 방의 **'소리' 버튼**을 한 번 누르면 배경음과 효과음이 함께 켜지고, 하나씩 따로 조절하려면 설정에서 바꾸면 됩니다.
+
+### 책 글귀 바꾸기
+
+`src/data/bookLines.ts`에 한 줄씩 추가하거나 고치면 됩니다. 지금 그대로의 나를 토닥이는 위로의 말을 담고, 재촉하거나 치료를 약속하는 말은 쓰지 않아요.
 
 ### 디자인을 바꾸고 싶다면
 
@@ -186,7 +200,7 @@ firefly/
 npm run test
 ```
 
-불빛 만료·페이드·남은 시간 문구, 작은 행동의 하루 한 개·누적 없음·'자리에서 할 수 있는 것만'·금지 문구, 시간대·실제 달 위상·창문 마을 배정 검사 (36개).
+불빛 만료·페이드·남은 시간 문구, 작은 행동의 하루 한 개·누적 없음·'자리에서 할 수 있는 것만'·금지 문구, 시간대·실제 달 위상·창문 마을 배정, 배경음 작곡 규칙(음계·잔잔함·끊김 없음·웅웅 울림 없음)·책 글귀 검사 (55개).
 
 ### 데이터베이스 보안 테스트
 

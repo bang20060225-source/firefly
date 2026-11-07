@@ -1,10 +1,13 @@
 // 앱 전체 상태: 시작 단계, 연령 확인, 설정, 밤하늘
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CONSENT_VERSION } from '../config'
+import { isMusicPlaying, setMusicPhase, startMusic, stopMusic, unlockAudio } from '../lib/audio/engine'
+import { playSound } from '../lib/sound'
 import { readJson, removeKey, writeJson } from '../lib/storage'
 import { toFireflyError, type FireflyErrorCode } from '../services/backend'
 import type { AgeCategory, AgeGate, UserSettings } from '../types'
 import { backend, demoBackend } from './backendInstance'
+import { useDayPhase } from './useDayPhase'
 import { useSharedSky, type SkyState } from './useSharedSky'
 import { usePrefersReducedMotion } from './usePrefersReducedMotion'
 
@@ -19,10 +22,13 @@ import { usePrefersReducedMotion } from './usePrefersReducedMotion'
 export type AppPhase = 'loading' | 'onboarding' | 'blocked' | 'ready' | 'error'
 
 const UNDER_14_KEY = 'under-14-notice'
+const MUSIC_KEY = 'music-enabled'
 
 type AppContextValue = {
   phase: AppPhase
   startError: FireflyErrorCode | null
+  /** 시작 오류의 자세한 내용 (서버 설정 문제를 찾을 때 도움) */
+  startErrorDetail: string | null
   ageGate: AgeGate | null
   settings: UserSettings | null
   /** 설정의 '움직임 줄이기' 또는 기기의 움직임 줄이기 설정 */
@@ -37,6 +43,14 @@ type AppContextValue = {
   updateSettings: (patch: Partial<UserSettings>) => Promise<UserSettings>
   /** 데이터·계정 삭제 후 처음 상태로 */
   restartFromScratch: () => void
+  /** 배경음 (이 기기에만 저장, 기본 꺼짐) */
+  musicEnabled: boolean
+  /** 버튼을 누르는 순간에 불러야 한다 (브라우저가 그때만 소리를 허락함) */
+  setMusicEnabled: (on: boolean) => void
+  /** 배경음이나 효과음 중 하나라도 켜져 있으면 true (홈·나의 방의 스피커 버튼) */
+  soundOn: boolean
+  /** 배경음과 효과음을 한꺼번에 켜고 끈다. 따로 조절은 설정에서. 버튼을 누르는 순간에 불러야 한다 */
+  setSoundOn: (on: boolean) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -44,6 +58,7 @@ const AppContext = createContext<AppContextValue | null>(null)
 export function AppProvider({ children, allowDemoTestConsent }: { children: ReactNode; allowDemoTestConsent: boolean }) {
   const [phase, setPhase] = useState<AppPhase>('loading')
   const [startError, setStartError] = useState<FireflyErrorCode | null>(null)
+  const [startErrorDetail, setStartErrorDetail] = useState<string | null>(null)
   const [ageGate, setAgeGate] = useState<AgeGate | null>(null)
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -77,7 +92,9 @@ export function AppProvider({ children, allowDemoTestConsent }: { children: Reac
         setPhase(readJson<boolean>(UNDER_14_KEY) ? 'blocked' : 'onboarding')
       } catch (err) {
         if (cancelled) return
-        setStartError(toFireflyError(err).code)
+        const error = toFireflyError(err)
+        setStartError(error.code)
+        setStartErrorDetail(error.message !== error.code ? error.message : null)
         setPhase('error')
       }
     }
@@ -140,9 +157,66 @@ export function AppProvider({ children, allowDemoTestConsent }: { children: Reac
 
   const sky = useSharedSky(backend, settings, phase === 'ready')
 
+  // ── 소리 ───────────────────────────────────────────────
+  const dayPhase = useDayPhase()
+  const dayPhaseRef = useRef(dayPhase)
+  dayPhaseRef.current = dayPhase
+  const [musicEnabled, setMusicEnabledState] = useState(() => readJson<boolean>(MUSIC_KEY) === true)
+
+  const setMusicEnabled = useCallback((on: boolean) => {
+    writeJson(MUSIC_KEY, on)
+    setMusicEnabledState(on)
+    if (on) {
+      unlockAudio()
+      startMusic(dayPhaseRef.current)
+    } else {
+      stopMusic()
+    }
+  }, [])
+
+  // 시간대가 바뀌면 배경음 분위기도 바꾼다
+  useEffect(() => {
+    if (musicEnabled) setMusicPhase(dayPhase)
+  }, [musicEnabled, dayPhase])
+
+  // 지난번에 배경음을 켜 두었다면, 브라우저 정책상 화면을 처음 누르는 순간에 다시 시작한다
+  useEffect(() => {
+    if (!musicEnabled || isMusicPlaying()) return
+    const start = () => {
+      unlockAudio()
+      startMusic(dayPhaseRef.current)
+    }
+    window.addEventListener('pointerdown', start, { once: true })
+    window.addEventListener('keydown', start, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', start)
+      window.removeEventListener('keydown', start)
+    }
+  }, [musicEnabled])
+
+  // 효과음을 켜 두었다면, 화면을 누를 때 소리를 낼 수 있는 상태로 준비해 둔다 (iOS 대비)
+  const soundEnabled = settings?.soundEnabled ?? false
+  useEffect(() => {
+    if (!soundEnabled) return
+    window.addEventListener('pointerdown', unlockAudio, { passive: true })
+    return () => window.removeEventListener('pointerdown', unlockAudio)
+  }, [soundEnabled])
+
+  // 스피커 버튼: 처음엔 둘 다 꺼져 있다(갑자기 소리가 나지 않게). 한 번 누르면 배경음과 효과음이 함께 켜진다.
+  const setSoundOn = useCallback(
+    async (on: boolean) => {
+      setMusicEnabled(on)
+      // 켰다는 걸 바로 알 수 있게 작은 소리 하나 (배경음은 3초에 걸쳐 천천히 커진다)
+      if (on) playSound('tap', true)
+      if ((settings?.soundEnabled ?? false) !== on) await updateSettings({ soundEnabled: on })
+    },
+    [setMusicEnabled, settings, updateSettings],
+  )
+
   const value: AppContextValue = {
     phase,
     startError,
+    startErrorDetail,
     ageGate,
     settings,
     reduceMotion: systemReduceMotion || (settings?.reduceMotion ?? false),
@@ -156,6 +230,10 @@ export function AppProvider({ children, allowDemoTestConsent }: { children: Reac
     grantDemoTestConsent,
     updateSettings,
     restartFromScratch,
+    musicEnabled,
+    setMusicEnabled,
+    soundOn: musicEnabled || soundEnabled,
+    setSoundOn,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

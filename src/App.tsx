@@ -14,7 +14,7 @@ import { Settings } from './screens/Settings'
 import { Under14Notice } from './screens/Under14Notice'
 
 export function App() {
-  const { phase, startError, retryStart, reduceMotion } = useApp()
+  const { phase, startError, startErrorDetail, retryStart, reduceMotion } = useApp()
   const route = useHashRoute()
 
   return (
@@ -27,7 +27,7 @@ export function App() {
       {phase === 'loading' && <LoadingState label="밤하늘을 여는 중이에요" />}
       {phase === 'error' && (
         <div className="pt-16">
-          <ErrorState message={errorMessage(new FireflyError(startError ?? 'unknown'))} onRetry={retryStart} />
+          <ErrorState message={errorMessage(new FireflyError(startError ?? 'unknown'))} detail={startErrorDetail} onRetry={retryStart} />
         </div>
       )}
       {phase === 'onboarding' && <Onboarding />}

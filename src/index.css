@@ -5,6 +5,9 @@
   색은 아래 토큰만 바꾸면 화면 전체에 반영된다.
 */
 @theme {
+  /* 책 글귀용 명조체 (구글 폰트 Gowun Batang, 없으면 기기 명조체) */
+  --font-book: 'Gowun Batang', 'Nanum Myeongjo', 'AppleMyungjo', 'Noto Serif KR', serif;
+
   --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
     'Noto Sans KR', 'Noto Sans CJK KR', 'Malgun Gothic', sans-serif;
 
@@ -272,6 +275,48 @@
   .animate-sock,
   .animate-plant,
   .animate-steam {
+    animation: none;
+  }
+}
+
+/* 책 */
+@keyframes page-turn {
+  from {
+    opacity: 0;
+    transform: perspective(600px) rotateY(-14deg) translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(600px) rotateY(0deg) translateX(0);
+  }
+}
+
+@keyframes book-peek {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-page {
+  animation: page-turn 0.45s ease-out both;
+}
+
+.animate-book {
+  animation: book-peek 0.5s ease-out;
+}
+
+.reduce-motion .animate-page,
+.reduce-motion .animate-book {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-page,
+  .animate-book {
     animation: none;
   }
 }

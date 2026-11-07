@@ -1,10 +1,10 @@
 // 나의 방 장면 — 방 안에서 바라본 작은 방.
 // 들어오면 스탠드 불빛이 은은하게 켜진다. (나에게만 보이는 불빛)
 // 내 불빛이 공동 밤하늘에 떠 있으면 창밖에도 작게 보인다.
-// 방 안의 물건(스탠드·양말·화분·머그컵)은 눌러 볼 수 있다. 점수나 목표는 없는 그냥 장난감이다.
+// 방 안의 물건(스탠드·양말·화분·머그컵·책)은 눌러 볼 수 있다. 점수나 목표는 없는 그냥 장난감이다.
 import type { KeyboardEvent } from 'react'
 
-export type RoomToy = 'lamp' | 'sock' | 'plant' | 'mug'
+export type RoomToy = 'lamp' | 'sock' | 'plant' | 'mug' | 'book'
 
 type Props = {
   myLightInSky: boolean
@@ -21,25 +21,26 @@ const TOY_LABEL: Record<RoomToy, string> = {
   sock: '양말 건드려 보기',
   plant: '화분 건드려 보기',
   mug: '머그컵 건드려 보기',
+  book: '책장의 책 펼쳐 보기',
 }
 
 export function RoomScene({ myLightInSky, lampOn, active, onToy, interactive = true }: Props) {
-  const toyProps = (toy: RoomToy) =>
-    interactive
-      ? {
-    role: 'button',
-    tabIndex: 0,
-    'aria-label': toy === 'lamp' ? `${TOY_LABEL.lamp} (지금 ${lampOn ? '켜짐' : '꺼짐'})` : TOY_LABEL[toy],
-    className: 'cursor-pointer outline-none [&:focus-visible>.focus-ring]:opacity-100',
-    onClick: () => onToy(toy),
-    onKeyDown: (event: KeyboardEvent) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault()
-        onToy(toy)
-      }
-    },
+  const toyProps = (toy: RoomToy) => {
+    if (!interactive) return {}
+    return {
+      role: 'button',
+      tabIndex: 0,
+      'aria-label': toy === 'lamp' ? `${TOY_LABEL.lamp} (지금 ${lampOn ? '켜짐' : '꺼짐'})` : TOY_LABEL[toy],
+      className: 'cursor-pointer outline-none [&:focus-visible>.focus-ring]:opacity-100',
+      onClick: () => onToy(toy),
+      onKeyDown: (event: KeyboardEvent) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onToy(toy)
         }
-      : {}
+      },
+    }
+  }
   const playing = (toy: RoomToy) => (active?.toy === toy ? active.key : 0)
 
   return (
@@ -100,6 +101,24 @@ export function RoomScene({ myLightInSky, lampOn, active, onToy, interactive = t
 
         {/* 스탠드 이 꺼지면 방이 살짝 어두워진다 */}
         <rect width="320" height="220" fill="#2a2740" style={{ opacity: lampOn ? 0 : 0.2, transition: 'opacity 0.6s ease' }} pointerEvents="none" />
+
+        {/* 장난감: 벽 선반의 책 — 누르면 글귀가 적힌 책이 펼쳐진다 */}
+        <g {...toyProps('book')} data-testid="toy-book">
+          <rect x="242" y="38" width="70" height="42" fill="transparent" />
+          <rect className="focus-ring opacity-0" x="242" y="38" width="70" height="42" rx="6" fill="none" stroke="#3d3a4a" strokeWidth="1.5" strokeDasharray="3 2" />
+          <rect x="246" y="72" width="62" height="4" rx="1.5" fill="#c7a47a" />
+          <path d="M252 76v5M300 76v5" stroke="#b8946b" strokeWidth="2" strokeLinecap="round" />
+          <g key={playing('book')} className={`toy ${playing('book') ? 'animate-book' : ''}`}>
+            <rect x="250" y="50" width="7" height="22" rx="1" fill="#8e98c4" />
+            <path d="M250.5 55h6M250.5 67h6" stroke="#f4eee3" strokeWidth="0.8" opacity="0.7" />
+          </g>
+          <rect x="258" y="54" width="6" height="18" rx="1" fill="#d9a1a0" />
+          <rect x="265" y="48" width="8" height="24" rx="1" fill="#7fae7a" />
+          <path d="M266 53h6" stroke="#f4eee3" strokeWidth="0.8" opacity="0.7" />
+          <rect x="276" y="53" width="6" height="20" rx="1" fill="#c98b5a" transform="rotate(16 276 73)" />
+          {/* 선반 끝의 작은 별 장식 */}
+          <path d="M298 62l1.6 3.4 3.4 1.6-3.4 1.6-1.6 3.4-1.6-3.4-3.4-1.6 3.4-1.6z" fill="#ffd27a" />
+        </g>
 
         {/* 장난감: 화분 */}
         <g {...toyProps('plant')} data-testid="toy-plant">

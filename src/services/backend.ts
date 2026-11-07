@@ -111,6 +111,16 @@ export function errorMessage(error: unknown): string {
   }
 }
 
+/**
+ * 오류의 기술적인 내용 (예: "Anonymous sign-ins are disabled").
+ * 서버 설정이 빠졌을 때 원인을 찾기 쉽도록 화면에 작게 보여준다. 개인정보는 담기지 않는다.
+ */
+export function errorDetail(error: unknown): string | null {
+  const err = toFireflyError(error)
+  if (err.code !== 'unknown' && err.code !== 'network') return null
+  return err.message && err.message !== err.code ? err.message.slice(0, 160) : null
+}
+
 /** Supabase·네트워크 오류 메시지를 반딧불이 오류 코드로 바꾼다 */
 export function toFireflyError(error: unknown): FireflyError {
   if (error instanceof FireflyError) return error

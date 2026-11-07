@@ -12,6 +12,7 @@ import { NightSky, skyHouseColor } from '../components/sky/NightSky'
 import { RisingLight } from '../components/sky/RisingLight'
 import { SkyLights, skyTopPercent } from '../components/sky/SkyLights'
 import { Village, VILLAGE_WINDOWS } from '../components/sky/Village'
+import { SoundButton } from '../components/SoundButton'
 import { Button, ConfirmDialog, ErrorState, LiveMessage } from '../components/ui'
 import { config } from '../config'
 import { exampleLights } from '../data/exampleSky'
@@ -46,7 +47,7 @@ export function Home() {
 
   const nowMs = sky.now()
   const isPrivate = settings?.visibilityMode === 'private'
-  const soundOn = settings?.soundEnabled ?? false
+  const effectsOn = settings?.soundEnabled ?? false
   const waveResting = sky.waveResting
 
   function showLocalNotice(text: string) {
@@ -105,7 +106,7 @@ export function Home() {
     softVibrate(settings?.vibrationEnabled ?? false)
     if (result.status === 'published') {
       startRising(result.light)
-      playSound('light', soundOn)
+      playSound('light', effectsOn)
     }
     setMessage(
       result.status === 'already_active'
@@ -164,7 +165,7 @@ export function Home() {
     try {
       await sky.sendWave()
       softVibrate(settings?.vibrationEnabled ?? false)
-      playSound('warmth', soundOn)
+      playSound('warmth', effectsOn)
       setMessage('밤하늘에 온기가 번졌어요.')
     } catch (err) {
       setMessage(errorMessage(err))
@@ -174,7 +175,7 @@ export function Home() {
   }
 
   function pressMoon(name: string) {
-    playSound('tap', soundOn)
+    playSound('moon', effectsOn)
     showLocalNotice(
       name === '달이 쉬는 밤'
         ? '오늘은 달이 쉬는 밤이에요. 진짜 하늘에서도 달이 잘 보이지 않아요.'
@@ -199,13 +200,16 @@ export function Home() {
       <NightSky className="h-[58dvh] min-h-[380px]" houses={false}>
         <header className="relative z-10 flex items-center justify-between px-5 pt-5">
           <p className="text-[17px] font-semibold tracking-tight text-night-100">반딧불이</p>
-          <button
-            type="button"
-            onClick={() => navigate('help')}
-            className="min-h-11 rounded-full px-3 text-[13px] text-night-200 hover:text-night-100"
-          >
-            도움이 필요할 때
-          </button>
+          <div className="flex items-center gap-1">
+            <SoundButton tone="night" onError={setMessage} />
+            <button
+              type="button"
+              onClick={() => navigate('help')}
+              className="min-h-11 rounded-full px-3 text-[13px] text-night-200 hover:text-night-100"
+            >
+              도움이 필요할 때
+            </button>
+          </div>
         </header>
 
         <div className="absolute right-3 top-[68px] z-10">
@@ -323,7 +327,7 @@ export function Home() {
 
         {sky.error ? (
           <div className="mt-4">
-            <ErrorState message={errorMessage(new FireflyError(sky.error))} onRetry={() => void sky.reload()} />
+            <ErrorState message={errorMessage(new FireflyError(sky.error))} detail={sky.errorDetail} onRetry={() => void sky.reload()} />
           </div>
         ) : (
           <>
