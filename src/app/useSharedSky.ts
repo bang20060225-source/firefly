@@ -24,6 +24,10 @@ export type SkyState = {
   sendWave: () => Promise<void>
   /** 온기를 보낸 뒤 30초 동안 true */
   waveResting: boolean
+  /** 다른 사람의 불빛·온기가 닿았을 때의 조용한 알림 */
+  notice: { key: number; text: string } | null
+  /** 화면에만 파동을 그린다 (서버에 보내지 않음). DEMO 예시 화면용 */
+  playWave: (waveId: string) => void
 }
 
 export function useSharedSky(backend: FireflyBackend, settings: UserSettings | null, enabled: boolean): SkyState {
@@ -38,6 +42,25 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
   const offsetRef = useRef(0)
   const seenWaves = useRef(new Set<string>())
   const now = useCallback(() => Date.now() + offsetRef.current, [])
+
+  // 다른 사람의 불빛·온기가 닿았을 때 잠깐 보여주는 조용한 알림 (누구인지, 몇 명인지는 말하지 않는다)
+  const [notice, setNotice] = useState<{ key: number; text: string } | null>(null)
+  const noticeTimer = useRef<number | undefined>(undefined)
+  const showNotice = useCallback((text: string) => {
+    window.clearTimeout(noticeTimer.current)
+    setNotice({ key: Date.now(), text })
+    noticeTimer.current = window.setTimeout(() => setNotice(null), 4500)
+  }, [])
+  useEffect(() => () => window.clearTimeout(noticeTimer.current), [])
+
+  // 내가 보낸 것인지 구분하기 위한 표시. 서버 응답보다 방송이 먼저 올 수 있어서 '보내는 중'도 함께 본다.
+  const publishingRef = useRef(false)
+  const sendingWaveRef = useRef(false)
+  const ownWaveIds = useRef(new Set<string>())
+  const myLightIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    myLightIdRef.current = myLight?.id ?? null
+  }, [myLight])
 
   const reload = useCallback(async () => {
     try {
@@ -71,10 +94,13 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
     const handleEvent = (event: SkyEvent) => {
       if (event.type === 'light_added') {
         setLights((current) => [...current.filter((l) => l.id !== event.light.id), event.light])
+        if (!publishingRef.current && event.light.id !== myLightIdRef.current) showNotice('누군가 불빛을 남겼어요')
       } else if (event.type === 'light_removed') {
         setLights((current) => current.filter((l) => l.id !== event.id))
         setMyLight((current) => (current?.id === event.id ? null : current))
       } else {
+        const mine = sendingWaveRef.current || ownWaveIds.current.has(event.waveId)
+        if (!mine && !seenWaves.current.has(event.waveId)) showNotice('누군가 온기를 퍼뜨렸어요')
         playWave(event.waveId)
       }
     }
@@ -108,7 +134,7 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
       document.removeEventListener('visibilitychange', handleVisible)
       window.clearInterval(timer)
     }
-  }, [backend, enabled, reload, playWave])
+  }, [backend, enabled, reload, playWave, showNotice])
 
   // 자동 공개: 동의한 사용자에 한해, 앱 세션(탭)이 시작될 때 딱 한 번만 확인한다.
   // 세션 도중에 자동 공개를 켜면 지금 바로 공개하지 않고, 다음에 앱을 열 때부터 적용된다.
@@ -134,7 +160,10 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
   }, [backend, enabled, loading, settings])
 
   const publish = useCallback(async () => {
-    const result = await backend.publishLight('manual')
+    publishingRef.current = true
+    const result = await backend.publishLight('manual').finally(() => {
+      publishingRef.current = false
+    })
     offsetRef.current = Date.parse(result.serverTime) - Date.now()
     setMyLight(result.light)
     setLights((current) => [...current.filter((l) => l.id !== result.light.id), result.light])
@@ -161,14 +190,18 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
   }, [waveRestUntil])
 
   const sendWave = useCallback(async () => {
+    sendingWaveRef.current = true
     try {
       const { waveId } = await backend.sendAmbientWave()
+      ownWaveIds.current.add(waveId)
       startWaveRest()
       playWave(waveId)
     } catch (err) {
       // 서버가 "아직 쉬는 중"이라고 하면 버튼도 같이 쉬게 한다
       if (toFireflyError(err).code === 'rate_limited') startWaveRest()
       throw err
+    } finally {
+      sendingWaveRef.current = false
     }
   }, [backend, playWave, startWaveRest])
 
@@ -188,5 +221,7 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
     cancel,
     sendWave,
     waveResting: waveRestUntil > 0,
+    notice,
+    playWave,
   }
 }

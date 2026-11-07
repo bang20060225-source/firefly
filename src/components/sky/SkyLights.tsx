@@ -45,11 +45,13 @@ export function SkyLights({
               transition: 'opacity 2s ease',
             }}
           >
-            <span className="absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,210,122,0.45)_0%,rgba(255,210,122,0)_70%)]" />
-            <span className="relative block h-2.5 w-2.5 rounded-full bg-glow-300 shadow-[0_0_10px_2px_rgba(255,200,97,0.75)]" />
-            {isMine && (
-              <span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-1 ring-glow-100/60" />
-            )}
+            <span className="animate-arrive relative block">
+              <span className="absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,210,122,0.45)_0%,rgba(255,210,122,0)_70%)]" />
+              <span className="relative block h-2.5 w-2.5 rounded-full bg-glow-300 shadow-[0_0_10px_2px_rgba(255,200,97,0.75)]" />
+              {isMine && (
+                <span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-1 ring-glow-100/60" />
+              )}
+            </span>
           </span>
         )
       })}

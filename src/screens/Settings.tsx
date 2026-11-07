@@ -88,7 +88,7 @@ export function Settings() {
             />
             <Toggle
               label="소리"
-              description="아직 소리가 나는 기능은 없어요. 켜 두면 나중에 추가될 때 사용해요."
+              description="불빛을 보태거나 온기를 보낼 때, 방 안 물건을 누를 때 아주 작은 소리가 나요."
               checked={settings.soundEnabled}
               onChange={(value) => void toggle('soundEnabled', value)}
             />

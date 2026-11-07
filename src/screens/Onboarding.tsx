@@ -5,6 +5,8 @@ import { navigate } from '../app/useHashRoute'
 import { Button, LiveMessage } from '../components/ui'
 import { NightSky } from '../components/sky/NightSky'
 import { MyWindow } from '../components/sky/MyWindow'
+import { RoomScene } from '../components/sky/RoomScene'
+import { Village } from '../components/sky/Village'
 import { errorMessage } from '../services/backend'
 import type { AgeCategory } from '../types'
 
@@ -92,7 +94,8 @@ export function Onboarding({ startAt = 'splash' }: { startAt?: Step }) {
             <p className="text-sm text-night-300" aria-hidden="true">
               {introIndex + 1} / {INTRO.length}
             </p>
-            <section key={introIndex} className="mt-10 flex-1 animate-fade-in" aria-live="polite">
+            <section key={introIndex} className="mt-6 flex-1 animate-fade-in" aria-live="polite">
+              <IntroPicture index={introIndex} />
               <h1 className="text-2xl font-semibold leading-snug text-night-100">{INTRO[introIndex].title}</h1>
               <p className="mt-4 text-[16px] leading-relaxed text-night-200">{INTRO[introIndex].body}</p>
             </section>
@@ -192,5 +195,53 @@ export function Onboarding({ startAt = 'splash' }: { startAt?: Step }) {
         )}
       </main>
     </NightSky>
+  )
+}
+
+// 첫 안내 화면의 그림. 설명을 돕는 '그림'일 뿐 실제 이용자의 불빛이 아니다.
+const ILLUSTRATION_WINDOWS = new Map([
+  [2, 1],
+  [9, 1],
+  [15, 0.7],
+  [21, 1],
+])
+
+function IntroPicture({ index }: { index: number }) {
+  if (index === 0) {
+    return (
+      <div className="mb-8 overflow-hidden rounded-[28px]" aria-hidden="true">
+        <RoomScene myLightInSky={false} lampOn active={null} onToy={() => {}} interactive={false} />
+      </div>
+    )
+  }
+  if (index === 1) {
+    return (
+      <div
+        className="relative mb-8 h-40 overflow-hidden rounded-[28px] bg-[linear-gradient(180deg,#151b33_0%,#2c3765_100%)] ring-1 ring-night-700"
+        aria-hidden="true"
+      >
+        {[
+          [18, 22],
+          [52, 14],
+          [78, 30],
+        ].map(([x, y]) => (
+          <span key={x} className="absolute block" style={{ left: `${x}%`, top: `${y}%` }}>
+            <span className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,210,122,0.45)_0%,rgba(255,210,122,0)_70%)]" />
+            <span className="relative block h-2 w-2 rounded-full bg-glow-300 shadow-[0_0_8px_2px_rgba(255,200,97,0.7)]" />
+          </span>
+        ))}
+        <div className="absolute inset-x-0 bottom-0">
+          <Village lit={ILLUSTRATION_WINDOWS} />
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="mb-8 flex h-40 items-center justify-center rounded-[28px] bg-night-800/70 ring-1 ring-night-700" aria-hidden="true">
+      <div className="flex flex-col items-center gap-3">
+        <MyWindow size="small" />
+        <span className="rounded-full bg-night-700 px-3 py-1 text-[12px] text-night-200">처음엔 비공개</span>
+      </div>
+    </div>
   )
 }
