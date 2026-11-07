@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CONSENT_VERSION } from '../config'
 import { isMusicPlaying, setMusicPhase, startMusic, stopMusic, unlockAudio } from '../lib/audio/engine'
+import { playSound } from '../lib/sound'
 import { readJson, removeKey, writeJson } from '../lib/storage'
 import { toFireflyError, type FireflyErrorCode } from '../services/backend'
 import type { AgeCategory, AgeGate, UserSettings } from '../types'
@@ -46,6 +47,10 @@ type AppContextValue = {
   musicEnabled: boolean
   /** 버튼을 누르는 순간에 불러야 한다 (브라우저가 그때만 소리를 허락함) */
   setMusicEnabled: (on: boolean) => void
+  /** 배경음이나 효과음 중 하나라도 켜져 있으면 true (홈·나의 방의 스피커 버튼) */
+  soundOn: boolean
+  /** 배경음과 효과음을 한꺼번에 켜고 끈다. 따로 조절은 설정에서. 버튼을 누르는 순간에 불러야 한다 */
+  setSoundOn: (on: boolean) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -197,6 +202,17 @@ export function AppProvider({ children, allowDemoTestConsent }: { children: Reac
     return () => window.removeEventListener('pointerdown', unlockAudio)
   }, [soundEnabled])
 
+  // 스피커 버튼: 처음엔 둘 다 꺼져 있다(갑자기 소리가 나지 않게). 한 번 누르면 배경음과 효과음이 함께 켜진다.
+  const setSoundOn = useCallback(
+    async (on: boolean) => {
+      setMusicEnabled(on)
+      // 켰다는 걸 바로 알 수 있게 작은 소리 하나 (배경음은 3초에 걸쳐 천천히 커진다)
+      if (on) playSound('tap', true)
+      if ((settings?.soundEnabled ?? false) !== on) await updateSettings({ soundEnabled: on })
+    },
+    [setMusicEnabled, settings, updateSettings],
+  )
+
   const value: AppContextValue = {
     phase,
     startError,
@@ -216,6 +232,8 @@ export function AppProvider({ children, allowDemoTestConsent }: { children: Reac
     restartFromScratch,
     musicEnabled,
     setMusicEnabled,
+    soundOn: musicEnabled || soundEnabled,
+    setSoundOn,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

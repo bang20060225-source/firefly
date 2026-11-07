@@ -12,6 +12,7 @@ import { NightSky, skyHouseColor } from '../components/sky/NightSky'
 import { RisingLight } from '../components/sky/RisingLight'
 import { SkyLights, skyTopPercent } from '../components/sky/SkyLights'
 import { Village, VILLAGE_WINDOWS } from '../components/sky/Village'
+import { SoundButton } from '../components/SoundButton'
 import { Button, ConfirmDialog, ErrorState, LiveMessage } from '../components/ui'
 import { config } from '../config'
 import { exampleLights } from '../data/exampleSky'
@@ -31,7 +32,7 @@ const CONNECTION_TEXT: Partial<Record<ConnectionState, string>> = {
 type Point = { x: number; y: number }
 
 export function Home() {
-  const { sky, settings, reduceMotion, updateSettings, musicEnabled, setMusicEnabled } = useApp()
+  const { sky, settings, reduceMotion, updateSettings } = useApp()
   const today = useTodayAction()
   const phase = useDayPhase()
   const layerRef = useRef<HTMLDivElement>(null)
@@ -46,7 +47,7 @@ export function Home() {
 
   const nowMs = sky.now()
   const isPrivate = settings?.visibilityMode === 'private'
-  const soundOn = settings?.soundEnabled ?? false
+  const effectsOn = settings?.soundEnabled ?? false
   const waveResting = sky.waveResting
 
   function showLocalNotice(text: string) {
@@ -105,7 +106,7 @@ export function Home() {
     softVibrate(settings?.vibrationEnabled ?? false)
     if (result.status === 'published') {
       startRising(result.light)
-      playSound('light', soundOn)
+      playSound('light', effectsOn)
     }
     setMessage(
       result.status === 'already_active'
@@ -164,7 +165,7 @@ export function Home() {
     try {
       await sky.sendWave()
       softVibrate(settings?.vibrationEnabled ?? false)
-      playSound('warmth', soundOn)
+      playSound('warmth', effectsOn)
       setMessage('밤하늘에 온기가 번졌어요.')
     } catch (err) {
       setMessage(errorMessage(err))
@@ -174,7 +175,7 @@ export function Home() {
   }
 
   function pressMoon(name: string) {
-    playSound('moon', soundOn)
+    playSound('moon', effectsOn)
     showLocalNotice(
       name === '달이 쉬는 밤'
         ? '오늘은 달이 쉬는 밤이에요. 진짜 하늘에서도 달이 잘 보이지 않아요.'
@@ -200,23 +201,7 @@ export function Home() {
         <header className="relative z-10 flex items-center justify-between px-5 pt-5">
           <p className="text-[17px] font-semibold tracking-tight text-night-100">반딧불이</p>
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              aria-pressed={musicEnabled}
-              aria-label={musicEnabled ? '배경음 끄기' : '배경음 켜기'}
-              title={musicEnabled ? '배경음 끄기' : '배경음 켜기'}
-              onClick={() => setMusicEnabled(!musicEnabled)}
-              className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
-                musicEnabled ? 'bg-glow-400/15 text-glow-300 ring-1 ring-glow-400/40' : 'text-night-200 hover:text-night-100'
-              }`}
-            >
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 18V6l10-2v12" />
-                <circle cx="6.5" cy="18" r="2.5" />
-                <circle cx="16.5" cy="16" r="2.5" />
-                {!musicEnabled && <path d="M3 3l18 18" />}
-              </svg>
-            </button>
+            <SoundButton tone="night" onError={setMessage} />
             <button
               type="button"
               onClick={() => navigate('help')}

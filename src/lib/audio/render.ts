@@ -1,13 +1,13 @@
 // 소리를 실제로 만드는 부분 (Web Audio).
 // AudioContext 와 OfflineAudioContext 둘 다에서 동작해서, 미리듣기 파일도 같은 코드로 만든다.
 
-import { midiToFreq, type AmbientEvent } from './composer'
+import { midiToFreq, type AmbientEvent, type PianoEvent } from './composer'
 
 /** 소리가 흘러갈 길: 그대로 나가는 길(dry)과 울림(리버브)으로 가는 길(send) */
 export type Buses = { dry: AudioNode; send: AudioNode; noise: AudioBuffer }
 
 // 소리 크기 기준값. 배경음은 아주 작게 깔리도록 맞췄다.
-const PAD_PEAK = 0.022
+const PIANO_PEAK = 0.16
 const BELL_PEAK = 0.05
 const CRICKET_PEAK = 0.0055
 
@@ -37,30 +37,6 @@ export function makeNoise(ctx: BaseAudioContext, seconds: number, rng: () => num
   const buffer = ctx.createBuffer(1, length, ctx.sampleRate)
   const data = buffer.getChannelData(0)
   for (let i = 0; i < length; i++) data[i] = rng() * 2 - 1
-  return buffer
-}
-
-/** 끊김 없이 반복되는 낮은 바람결 소리 (갈색 잡음, 끝과 시작을 부드럽게 이어 붙임) */
-export function makeAirLoop(ctx: BaseAudioContext, seconds: number, rng: () => number): AudioBuffer {
-  const rate = ctx.sampleRate
-  const fade = Math.floor(rate * 0.25)
-  const length = Math.floor(rate * seconds)
-  const raw = new Float32Array(length + fade)
-  let value = 0
-  let peak = 0
-  for (let i = 0; i < raw.length; i++) {
-    value = value * 0.995 + (rng() * 2 - 1) * 0.05
-    raw[i] = value
-    peak = Math.max(peak, Math.abs(value))
-  }
-  const buffer = ctx.createBuffer(1, length, rate)
-  const data = buffer.getChannelData(0)
-  for (let i = 0; i < length; i++) data[i] = raw[i] / (peak || 1)
-  // 끝부분을 처음 부분에 겹쳐 섞어서 반복 지점에서 '틱' 소리가 나지 않게 한다
-  for (let i = 0; i < fade; i++) {
-    const a = i / fade
-    data[i] = (raw[i] * Math.sqrt(a) + raw[length + i] * Math.sqrt(1 - a)) / (peak || 1)
-  }
   return buffer
 }
 
@@ -119,55 +95,69 @@ export function renderBell(
   if (last) cleanupAfter(last, [out, pan1, send])
 }
 
-function renderChord(ctx: BaseAudioContext, buses: Buses, ev: Extract<AmbientEvent, { kind: 'chord' }>) {
-  const t = ev.time
-  const end = t + ev.duration
-  const peak = PAD_PEAK * ev.level
+// 부드러운 피아노(펠트 피아노)의 음색: 기본음 위로 배음이 빠르게 작아진다.
+// 한 번 만든 파형은 같은 오디오 장치에서 다시 쓴다.
+const pianoWaves = new WeakMap<BaseAudioContext, PeriodicWave>()
+function pianoWave(ctx: BaseAudioContext): PeriodicWave {
+  let wave = pianoWaves.get(ctx)
+  if (!wave) {
+    const partials = [0, 1, 0.42, 0.2, 0.11, 0.06, 0.035, 0.02, 0.012]
+    wave = ctx.createPeriodicWave(
+      partials.map(() => 0),
+      partials,
+    )
+    pianoWaves.set(ctx, wave)
+  }
+  return wave
+}
 
-  const filter = ctx.createBiquadFilter()
-  filter.type = 'lowpass'
-  filter.Q.value = 0.6
-  filter.frequency.setValueAtTime(ev.cutoff * 0.55, t)
-  filter.frequency.linearRampToValueAtTime(ev.cutoff, t + ev.duration * 0.45)
-  filter.frequency.linearRampToValueAtTime(ev.cutoff * 0.65, end)
+/**
+ * 피아노 한 음. 누르는 순간 또렷하다가 금방 부드러워지고(높은 배음이 먼저 사라짐),
+ * 낮은 음일수록 오래 울린다. 음이 어긋나게 겹치는 소리가 없어서 '웅웅' 떨리지 않는다.
+ */
+export function renderPiano(ctx: BaseAudioContext, buses: Buses, ev: PianoEvent) {
+  const t = ev.time
+  const frequency = midiToFreq(ev.midi)
+  const release = t + Math.max(0.05, ev.duration)
+
+  const osc = ctx.createOscillator()
+  osc.setPeriodicWave(pianoWave(ctx))
+  osc.frequency.value = frequency
+
+  const tone = ctx.createBiquadFilter()
+  tone.type = 'lowpass'
+  tone.Q.value = 0.4
+  const closed = Math.max(450, frequency * 1.6)
+  const open = Math.max(closed, Math.min(5200, Math.max(900, frequency * (3 + 4 * ev.velocity) * ev.brightness)))
+  tone.frequency.setValueAtTime(open, t)
+  tone.frequency.setTargetAtTime(closed, t + 0.02, 0.45)
 
   const amp = ctx.createGain()
+  // 낮은 음은 조금 작게: 낮은 소리가 오래 남으면 '웅' 하고 울린다
+  const low = ev.midi < 52 ? 0.6 + (0.4 * Math.max(0, ev.midi - 38)) / 14 : 1
+  const peak = PIANO_PEAK * ev.velocity ** 1.5 * low
+  // 울림이 남는 시간: 도3(48) 아래는 1.8초, 높은 음일수록 짧아진다
+  const ring = Math.min(1.8, 2.2 * 2 ** (-(ev.midi - 48) / 24))
   amp.gain.setValueAtTime(0, t)
-  amp.gain.linearRampToValueAtTime(peak, t + 3.5)
-  amp.gain.setValueAtTime(peak, end - 4.5)
-  amp.gain.linearRampToValueAtTime(0, end)
+  amp.gain.linearRampToValueAtTime(peak, t + 0.008)
+  amp.gain.setTargetAtTime(peak * 0.45, t + 0.008, 0.16)
+  if (release > t + 0.35) amp.gain.setTargetAtTime(0, t + 0.35, ring)
+  // 페달을 떼면 부드럽게 멎는다
+  amp.gain.setTargetAtTime(0, release, 0.12)
 
+  const pan1 = panner(ctx, Math.max(-0.3, Math.min(0.3, (ev.midi - 62) / 48)))
   const send = ctx.createGain()
-  send.gain.value = 0.45
-  filter.connect(amp)
-  amp.connect(buses.dry)
-  amp.connect(send)
+  send.gain.value = 0.5
+  osc.connect(tone)
+  tone.connect(amp)
+  amp.connect(pan1)
+  pan1.connect(buses.dry)
+  pan1.connect(send)
   send.connect(buses.send)
 
-  const sources: OscillatorNode[] = []
-  for (const note of ev.notes) {
-    for (const detune of [-7, 7]) {
-      const osc = ctx.createOscillator()
-      osc.type = 'sawtooth'
-      osc.frequency.value = midiToFreq(note)
-      osc.detune.value = detune
-      osc.connect(filter)
-      sources.push(osc)
-    }
-  }
-  const bass = ctx.createOscillator()
-  bass.frequency.value = midiToFreq(ev.bass)
-  const bassGain = ctx.createGain()
-  bassGain.gain.value = 0.6
-  bass.connect(bassGain)
-  bassGain.connect(amp)
-  sources.push(bass)
-
-  for (const source of sources) {
-    source.start(t)
-    source.stop(end + 0.1)
-  }
-  cleanupAfter(bass, [bassGain, filter, amp, send])
+  osc.start(t)
+  osc.stop(release + 0.7)
+  cleanupAfter(osc, [tone, amp, pan1, send])
 }
 
 function renderCrickets(
@@ -210,7 +200,7 @@ function renderCrickets(
 
 /** 작곡된 소리 하나를 실제 소리로 만든다 */
 export function renderAmbientEvent(ctx: BaseAudioContext, ev: AmbientEvent, buses: Buses, rng: () => number) {
-  if (ev.kind === 'chord') renderChord(ctx, buses, ev)
+  if (ev.kind === 'piano') renderPiano(ctx, buses, ev)
   else if (ev.kind === 'bell') renderBell(ctx, buses, ev.time, ev.midi, ev.level, ev.pan)
   else renderCrickets(ctx, buses, ev, rng)
 }

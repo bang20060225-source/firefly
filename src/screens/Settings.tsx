@@ -90,13 +90,13 @@ export function Settings() {
             />
             <Toggle
               label="배경음"
-              description="잔잔한 음악이 흘러요. 시간대에 따라 분위기가 바뀌고, 밤에는 풀벌레 소리가 조금 섞여요. 이 기기에만 저장돼요."
+              description="잔잔한 피아노 음악이 흘러요. 시간대에 따라 분위기가 조금씩 바뀌고, 밤에는 풀벌레 소리가 섞여요. 이 기기에만 저장돼요."
               checked={musicEnabled}
               onChange={(value) => setMusicEnabled(value)}
             />
             <Toggle
               label="효과음"
-              description="불빛을 보태거나 온기를 보낼 때, 방 안 물건을 누를 때 작은 소리가 나요. 휴대폰이 무음 모드면 들리지 않을 수 있어요."
+              description="불빛을 보태거나 온기를 보낼 때, 방 안 물건을 누를 때 작은 소리가 나요. 홈과 나의 방의 '소리' 버튼은 배경음과 효과음을 함께 켜고 꺼요. 휴대폰이 무음 모드면 들리지 않을 수 있어요."
               checked={settings.soundEnabled}
               onChange={(value) => {
                 if (value) playSound('tap', true)
