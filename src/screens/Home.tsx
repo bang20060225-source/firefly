@@ -9,6 +9,7 @@ import { AmbientWaves } from '../components/sky/AmbientWaves'
 import { Moon } from '../components/sky/Moon'
 import { MyWindow } from '../components/sky/MyWindow'
 import { NightSky, skyHouseColor } from '../components/sky/NightSky'
+import { MindDialog } from '../components/MindDialog'
 import { RisingLight } from '../components/sky/RisingLight'
 import { SkyLights, skyTopPercent } from '../components/sky/SkyLights'
 import { Village, VILLAGE_WINDOWS } from '../components/sky/Village'
@@ -41,6 +42,9 @@ export function Home() {
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<'light' | 'wave' | null>(null)
   const [privateInfoOpen, setPrivateInfoOpen] = useState(false)
+  const [mindOpen, setMindOpen] = useState(false)
+  // '마음 날려 보내기'에서 이어진 불빛인지 (안내 문구만 다르게). 글 내용은 어디에도 없다.
+  const fromMindRef = useRef(false)
   const [example, setExample] = useState(false)
   const [localNotice, setLocalNotice] = useState<{ key: number; text: string } | null>(null)
   const localNoticeTimer = useRef<number | undefined>(undefined)
@@ -101,29 +105,34 @@ export function Home() {
     })
   }
 
-  async function publishLight() {
+  async function publishLight(fromMind = false) {
     const result = await sky.publish()
     softVibrate(settings?.vibrationEnabled ?? false)
     if (result.status === 'published') {
       startRising(result.light)
       playSound('light', effectsOn)
     }
-    setMessage(
-      result.status === 'already_active'
-        ? '이미 내 불빛이 밤하늘에 떠 있어요.'
-        : '불빛 하나를 보탰어요. 2시간 동안 조용히 머물다 사라져요.',
-    )
+    if (result.status === 'already_active') {
+      setMessage(fromMind ? '마음을 날려 보냈어요. 내 불빛은 이미 밤하늘에 떠 있어요.' : '이미 내 불빛이 밤하늘에 떠 있어요.')
+    } else {
+      setMessage(
+        fromMind
+          ? '마음을 날려 보냈어요. 작은 불빛이 되어 2시간 동안 머물다 사라져요.'
+          : '불빛 하나를 보탰어요. 2시간 동안 조용히 머물다 사라져요.',
+      )
+    }
   }
 
-  async function addLight() {
+  async function addLight(fromMind = false) {
     if (isPrivate) {
+      fromMindRef.current = fromMind
       setPrivateInfoOpen(true)
       return
     }
     setBusy('light')
     setMessage(null)
     try {
-      await publishLight()
+      await publishLight(fromMind)
     } catch (err) {
       setMessage(errorMessage(err))
     } finally {
@@ -133,18 +142,38 @@ export function Home() {
 
   // 비공개 상태에서 버튼을 눌렀을 때: 안내를 읽고 동의하면 한 번에 '직접 공개'로 바꾸고 불빛을 남긴다
   async function switchToManualAndPublish() {
+    const fromMind = fromMindRef.current
+    fromMindRef.current = false
     setBusy('light')
     setMessage(null)
     try {
       await updateSettings({ visibilityMode: 'manual', autoConsentAt: null })
       setPrivateInfoOpen(false)
-      await publishLight()
+      await publishLight(fromMind)
     } catch (err) {
       setPrivateInfoOpen(false)
       setMessage(errorMessage(err))
     } finally {
       setBusy(null)
     }
+  }
+
+  function closePrivateInfo() {
+    setPrivateInfoOpen(false)
+    if (fromMindRef.current) {
+      fromMindRef.current = false
+      setMessage('마음을 날려 보냈어요. 글은 어디에도 남지 않았어요.')
+    }
+  }
+
+  // 마음 날려 보내기: 글은 이미 흩어져 지워졌다. 이제 평소처럼 불빛을 보탠다 (비공개면 공개할지 물어본다)
+  function afterMindSent() {
+    setMindOpen(false)
+    if (sky.myLight) {
+      setMessage('마음을 날려 보냈어요. 내 불빛은 이미 밤하늘에 떠 있어요.')
+      return
+    }
+    void addLight(true)
   }
 
   async function cancelLight() {
@@ -349,8 +378,29 @@ export function Home() {
                 {waveResting ? '잠시 쉬는 중' : busy === 'wave' ? '퍼뜨리는 중…' : '온기 퍼뜨리기'}
               </Button>
             </div>
+            <button
+              type="button"
+              onClick={() => setMindOpen(true)}
+              disabled={busy !== null || sky.loading}
+              className="mx-auto mt-2 flex min-h-11 items-center gap-2 rounded-full px-4 text-[14px] text-night-200 transition-colors hover:text-night-100 disabled:opacity-50"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 3 3 10.5l7 2.5 2.5 7z" />
+                <path d="m10 13 4.5-4.5" />
+              </svg>
+              마음 한 줄 날려 보내기
+            </button>
             {sky.myLight && (
-              <p className="mt-2 text-center text-[13px] text-night-300">
+              <p className="mt-1 text-center text-[13px] text-night-300">
                 내 불빛이 떠 있어요 · {describeRemaining(remainingMs(sky.myLight.expiresAt, nowMs))}
               </p>
             )}
@@ -382,7 +432,7 @@ export function Home() {
         cancelLabel="그대로 둘게요"
         busy={busy === 'light'}
         onConfirm={() => void switchToManualAndPublish()}
-        onClose={() => setPrivateInfoOpen(false)}
+        onClose={closePrivateInfo}
       >
         <p>불빛 공개 방식이 '비공개'라서 밤하늘에 불빛이 남지 않아요.</p>
         <p>
@@ -391,6 +441,8 @@ export function Home() {
         </p>
         <p>공개 방식은 나의 방이나 설정에서 언제든 다시 바꿀 수 있어요.</p>
       </ConfirmDialog>
+
+      <MindDialog open={mindOpen} reduceMotion={reduceMotion} onSent={afterMindSent} onClose={() => setMindOpen(false)} />
     </div>
   )
 }
