@@ -320,3 +320,68 @@
     animation: none;
   }
 }
+
+/* 마음 날려 보내기: 적은 글자가 하나씩 떠오르며 흩어지고, 작은 불빛 하나가 남아 올라간다 */
+@keyframes mind-dissolve {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0);
+    filter: blur(0);
+  }
+  55% {
+    opacity: 0.75;
+    color: var(--color-glow-300);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0px), -44px);
+    filter: blur(3px);
+    color: var(--color-glow-300);
+  }
+}
+
+@keyframes mind-spark {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.5);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-64px) scale(0.8);
+  }
+}
+
+@keyframes mind-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-dissolve {
+  display: inline-block;
+  white-space: pre;
+  animation: mind-dissolve 1.1s ease-in both;
+}
+
+.animate-spark {
+  animation: mind-spark 1.2s ease-out 0.45s both;
+}
+
+/* 움직임 줄이기: 움직이지 않고 조용히 사라지기만 한다 */
+.reduce-motion .animate-dissolve,
+.reduce-motion .animate-spark {
+  animation: mind-fade 0.35s ease-out both;
+  animation-delay: 0s !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-dissolve,
+  .animate-spark {
+    animation: mind-fade 0.35s ease-out both;
+    animation-delay: 0s !important;
+  }
+}

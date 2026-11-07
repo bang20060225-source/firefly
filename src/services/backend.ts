@@ -70,6 +70,7 @@ export type FireflyErrorCode =
   | 'not_authenticated'
   | 'email_exists'
   | 'invalid_email'
+  | 'email_unavailable'
   | 'network'
   | 'not_available_in_demo'
   | 'unknown'
@@ -102,6 +103,8 @@ export function errorMessage(error: unknown): string {
       return '이미 다른 공간에 연결된 이메일이에요. 두 공간을 자동으로 합치지는 않아요.'
     case 'invalid_email':
       return '이메일 주소를 다시 확인해 주세요.'
+    case 'email_unavailable':
+      return '지금은 이메일을 보낼 수 없어요. 시험 운영 중이라 메일 발송이 아직 준비되지 않았어요.'
     case 'network':
       return '인터넷 연결이 불안정해요. 잠시 뒤 다시 시도해 주세요.'
     case 'not_available_in_demo':
@@ -139,6 +142,13 @@ export function toFireflyError(error: unknown): FireflyError {
   }
   if (code === 'email_exists' || /already (been )?registered|already exists/i.test(message)) {
     return new FireflyError('email_exists', message)
+  }
+  // Supabase 기본 메일은 팀원 주소로만 보낼 수 있다 (메일 발송 서비스를 따로 연결하기 전까지)
+  if (code === 'email_address_not_authorized' || /not authorized/i.test(message)) {
+    return new FireflyError('email_unavailable', message)
+  }
+  if (code === 'over_email_send_rate_limit' || /email rate limit/i.test(message)) {
+    return new FireflyError('rate_limited', message)
   }
   if (code === 'email_address_invalid' || /invalid.*email|email.*invalid/i.test(message)) {
     return new FireflyError('invalid_email', message)
