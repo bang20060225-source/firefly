@@ -2,14 +2,26 @@
 import { lightOpacity } from '../../lib/lightRules'
 import type { SharedLight } from '../../types'
 
+/**
+ * 서버 좌표(y: 0.1~0.7)를 화면 높이 비율(%)로 바꾼다.
+ * 제목 줄 아래부터 언덕 위까지의 열린 하늘에 놓이도록 한다.
+ * 떠오르는 불빛 연출(RisingLight)도 같은 계산을 쓴다.
+ */
+export function skyTopPercent(y: number): number {
+  return 16 + y * 76
+}
+
 export function SkyLights({
   lights,
   myLightId,
+  hiddenId = null,
   nowMs,
   reduceMotion,
 }: {
   lights: SharedLight[]
   myLightId: string | null
+  /** 떠오르는 연출 중인 불빛은 도착할 때까지 숨긴다 */
+  hiddenId?: string | null
   nowMs: number
   reduceMotion: boolean
 }) {
@@ -17,7 +29,7 @@ export function SkyLights({
     <div aria-hidden="true" className="pointer-events-none absolute inset-0">
       {lights.map((light, index) => {
         const opacity = lightOpacity(light.expiresAt, nowMs)
-        if (opacity <= 0) return null
+        if (opacity <= 0 || light.id === hiddenId) return null
         const isMine = light.id === myLightId
         return (
           <span
@@ -26,8 +38,7 @@ export function SkyLights({
             className={`absolute block ${reduceMotion ? '' : 'animate-firefly'}`}
             style={{
               left: `${light.x * 100}%`,
-              // 서버 좌표(0.1~0.7)를 제목 줄 아래 ~ 언덕 위 사이의 열린 하늘에 놓는다
-              top: `${16 + light.y * 76}%`,
+              top: `${skyTopPercent(light.y)}%`,
               opacity,
               transform: 'translate(-50%, -50%)',
               animationDelay: `${(index % 7) * -0.9}s`,

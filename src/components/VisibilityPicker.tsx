@@ -12,7 +12,7 @@ const OPTIONS: { mode: VisibilityMode; title: string; description: string }[] = 
   { mode: 'auto', title: '자동 공개', description: '앱을 새로 열 때 한 번, 불빛이 밤하늘에 조용히 남아요.' },
 ]
 
-export function VisibilityPicker({ tone = 'night' }: { tone?: 'night' | 'paper' }) {
+export function VisibilityPicker({ tone = 'night', hideLegend = false }: { tone?: 'night' | 'paper'; hideLegend?: boolean }) {
   const { settings, updateSettings } = useApp()
   const [askAuto, setAskAuto] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -56,7 +56,9 @@ export function VisibilityPicker({ tone = 'night' }: { tone?: 'night' | 'paper' 
 
   return (
     <fieldset disabled={busy}>
-      <legend className={`mb-2 text-[15px] font-medium ${paper ? 'text-ink-700' : 'text-night-100'}`}>
+      <legend
+        className={hideLegend ? 'sr-only' : `mb-2 text-[15px] font-medium ${paper ? 'text-ink-700' : 'text-night-100'}`}
+      >
         불빛 공개 방식
       </legend>
       <div className="space-y-2">

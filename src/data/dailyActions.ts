@@ -24,5 +24,6 @@ export const DAILY_ACTIONS: DailyAction[] = [
   { id: 'hands', title: '손 따뜻하게 비비기', note: '손바닥끼리 살살.', lowMobility: true },
   { id: 'smell', title: '좋아하는 향 맡아보기', note: '비누나 차, 무엇이든.', lowMobility: true },
   { id: 'tidy', title: '눈앞의 물건 하나 제자리에 두기', note: '딱 하나만요.', lowMobility: false },
+  { id: 'blanket', title: '이불 정리하기', note: '대충 펴 두기만 해도 돼요.', lowMobility: false },
   { id: 'face', title: '얼굴에 시원한 물 묻히기', note: '손끝으로만 톡톡.', lowMobility: false },
 ]

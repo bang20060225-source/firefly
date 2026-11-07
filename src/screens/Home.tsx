@@ -1,19 +1,20 @@
 // 홈 — 공동의 밤하늘
 // 아무것도 하지 않고 바라보다 닫아도 괜찮은 화면.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { navigate } from '../app/useHashRoute'
 import { useTodayAction } from '../app/useTodayAction'
 import { AmbientWaves } from '../components/sky/AmbientWaves'
 import { MyWindow } from '../components/sky/MyWindow'
 import { NightSky } from '../components/sky/NightSky'
-import { SkyLights } from '../components/sky/SkyLights'
+import { RisingLight } from '../components/sky/RisingLight'
+import { SkyLights, skyTopPercent } from '../components/sky/SkyLights'
 import { Button, ConfirmDialog, ErrorState, LiveMessage } from '../components/ui'
 import { config } from '../config'
 import { softVibrate } from '../lib/haptics'
 import { describeRemaining, remainingMs } from '../lib/lightRules'
 import { errorMessage, FireflyError } from '../services/backend'
-import type { ConnectionState } from '../types'
+import type { ConnectionState, SharedLight } from '../types'
 
 const CONNECTION_TEXT: Partial<Record<ConnectionState, string>> = {
   connecting: '밤하늘에 연결하는 중이에요',
@@ -22,8 +23,13 @@ const CONNECTION_TEXT: Partial<Record<ConnectionState, string>> = {
 }
 
 export function Home() {
-  const { sky, settings, reduceMotion } = useApp()
+  const { sky, settings, reduceMotion, updateSettings } = useApp()
   const today = useTodayAction()
+  const layerRef = useRef<HTMLDivElement>(null)
+  const windowRef = useRef<HTMLButtonElement>(null)
+  const [rising, setRising] = useState<{ id: string; from: { x: number; y: number }; to: { x: number; y: number } } | null>(
+    null,
+  )
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<'light' | 'wave' | null>(null)
   const waveResting = sky.waveResting
@@ -31,6 +37,30 @@ export function Home() {
 
   const nowMs = sky.now()
   const isPrivate = settings?.visibilityMode === 'private'
+
+  // 내 창문에서 하늘의 자리까지 떠오르는 연출. 화면 좌표(px)로 계산한다.
+  function startRising(light: SharedLight) {
+    if (reduceMotion) return
+    const layer = layerRef.current?.getBoundingClientRect()
+    const windowBox = windowRef.current?.getBoundingClientRect()
+    if (!layer || !windowBox) return
+    setRising({
+      id: light.id,
+      from: { x: windowBox.left - layer.left + 28, y: windowBox.top - layer.top + 22 },
+      to: { x: light.x * layer.width, y: (skyTopPercent(light.y) / 100) * layer.height },
+    })
+  }
+
+  async function publishLight() {
+    const result = await sky.publish()
+    softVibrate(settings?.vibrationEnabled ?? false)
+    if (result.status === 'published') startRising(result.light)
+    setMessage(
+      result.status === 'already_active'
+        ? '이미 내 불빛이 밤하늘에 떠 있어요.'
+        : '불빛 하나를 보탰어요. 2시간 동안 조용히 머물다 사라져요.',
+    )
+  }
 
   async function addLight() {
     if (isPrivate) {
@@ -40,14 +70,24 @@ export function Home() {
     setBusy('light')
     setMessage(null)
     try {
-      const status = await sky.publish()
-      softVibrate(settings?.vibrationEnabled ?? false)
-      setMessage(
-        status === 'already_active'
-          ? '이미 내 불빛이 밤하늘에 떠 있어요.'
-          : '불빛 하나를 보탰어요. 2시간 동안 조용히 머물다 사라져요.',
-      )
+      await publishLight()
     } catch (err) {
+      setMessage(errorMessage(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // 비공개 상태에서 버튼을 눌렀을 때: 안내를 읽고 동의하면 한 번에 '직접 공개'로 바꾸고 불빛을 남긴다
+  async function switchToManualAndPublish() {
+    setBusy('light')
+    setMessage(null)
+    try {
+      await updateSettings({ visibilityMode: 'manual', autoConsentAt: null })
+      setPrivateInfoOpen(false)
+      await publishLight()
+    } catch (err) {
+      setPrivateInfoOpen(false)
       setMessage(errorMessage(err))
     } finally {
       setBusy(null)
@@ -105,8 +145,18 @@ export function Home() {
           </button>
         </header>
 
-        <SkyLights lights={sky.lights} myLightId={sky.myLight?.id ?? null} nowMs={nowMs} reduceMotion={reduceMotion} />
+        <SkyLights
+          lights={sky.lights}
+          myLightId={sky.myLight?.id ?? null}
+          hiddenId={rising?.id ?? null}
+          nowMs={nowMs}
+          reduceMotion={reduceMotion}
+        />
         <AmbientWaves waves={sky.waves} reduceMotion={reduceMotion} />
+        {/* 떠오르는 불빛의 좌표 기준이 되는 층 */}
+        <div ref={layerRef} aria-hidden="true" className="pointer-events-none absolute inset-0">
+          {rising && <RisingLight from={rising.from} to={rising.to} onDone={() => setRising(null)} />}
+        </div>
 
         {/* 스크린리더용 요약. 개수는 경쟁 지표가 되지 않도록 말하지 않는다 */}
         <p className="sr-only" aria-live="polite">
@@ -115,14 +165,18 @@ export function Home() {
         </p>
 
         {!sky.loading && skyEmpty && !sky.error && (
-          <p className="absolute inset-x-0 top-[34%] z-10 px-8 text-center text-[15px] leading-relaxed text-night-200/90">
-            지금은 하늘이 조용해요.
-            <br />
-            조용한 밤도 괜찮아요.
-          </p>
+          <div className="absolute inset-x-0 top-[32%] z-10 px-8 text-center">
+            <p className="text-[15px] leading-relaxed text-night-200/90">
+              지금은 하늘이 조용해요.
+              <br />
+              조용한 밤도 괜찮아요.
+            </p>
+            <p className="mt-3 text-[12px] text-night-300">누군가 불빛을 남기면 여기에 떠올라요</p>
+          </div>
         )}
 
         <button
+          ref={windowRef}
           type="button"
           onClick={() => navigate('room')}
           className="absolute bottom-4 left-5 z-10 flex items-end gap-2 rounded-xl p-1 text-left"
@@ -209,16 +263,18 @@ export function Home() {
       <ConfirmDialog
         open={privateInfoOpen}
         title="지금은 나에게만 보이는 설정이에요"
-        confirmLabel="공개 방식 바꾸러 가기"
+        confirmLabel="직접 공개로 바꾸고 불빛 남기기"
         cancelLabel="그대로 둘게요"
-        onConfirm={() => {
-          setPrivateInfoOpen(false)
-          navigate('room')
-        }}
+        busy={busy === 'light'}
+        onConfirm={() => void switchToManualAndPublish()}
         onClose={() => setPrivateInfoOpen(false)}
       >
         <p>불빛 공개 방식이 '비공개'라서 밤하늘에 불빛이 남지 않아요.</p>
-        <p>'직접 공개'로 바꾸면 이 버튼을 누를 때만 밤하늘에 불빛이 남아요.</p>
+        <p>
+          '직접 공개'로 바꾸면 지금처럼 버튼을 누를 때만 불빛이 남아요. 누가 남겼는지는 아무도 알 수 없고, 2시간 뒤
+          사라져요.
+        </p>
+        <p>공개 방식은 나의 방이나 설정에서 언제든 다시 바꿀 수 있어요.</p>
       </ConfirmDialog>
     </div>
   )

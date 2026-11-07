@@ -19,7 +19,7 @@ export type SkyState = {
   loading: boolean
   error: FireflyErrorCode | null
   reload: () => Promise<void>
-  publish: () => Promise<'published' | 'already_active'>
+  publish: () => Promise<{ status: 'published' | 'already_active'; light: SharedLight }>
   cancel: () => Promise<void>
   sendWave: () => Promise<void>
   /** 온기를 보낸 뒤 30초 동안 true */
@@ -138,7 +138,7 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
     offsetRef.current = Date.parse(result.serverTime) - Date.now()
     setMyLight(result.light)
     setLights((current) => [...current.filter((l) => l.id !== result.light.id), result.light])
-    return result.status
+    return { status: result.status, light: result.light }
   }, [backend])
 
   const cancel = useCallback(async () => {
