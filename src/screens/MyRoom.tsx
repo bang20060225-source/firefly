@@ -10,6 +10,7 @@ import { playSound, type SoundKind } from '../lib/sound'
 import { Button, LiveMessage } from '../components/ui'
 import { VisibilityPicker } from '../components/VisibilityPicker'
 import { describeRemaining, remainingMs } from '../lib/lightRules'
+import { readJson, safeSession, writeJson } from '../lib/storage'
 import { errorMessage } from '../services/backend'
 import type { VisibilityMode } from '../types'
 
@@ -29,12 +30,19 @@ const TOY_LINES: Record<Exclude<RoomToy, 'lamp' | 'book'>, string[]> = {
 const LAMP_ON_CAPTION = '방에 불이 켜졌어요. 이 불빛은 나에게만 보여요.'
 const LAMP_OFF_CAPTION = '스탠드를 껐어요. 창밖이 조금 더 잘 보여요.'
 
+// 스탠드를 끈 채로 다른 화면에 다녀와도 그대로 꺼져 있도록, 앱을 열어 둔 동안(탭 세션) 기억한다.
+// 앱을 새로 열면 다시 불이 켜진 방에서 시작한다. (방에 들어오면 나에게만 보이는 불빛이 반겨 준다)
+const LAMP_KEY = 'room-lamp-on'
+
 export function MyRoom() {
   const { sky, settings, musicEnabled } = useApp()
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [lampOn, setLampOn] = useState(true)
+  const [lampOn, setLampOn] = useState(() => readJson<boolean>(LAMP_KEY, safeSession()) ?? true)
+  useEffect(() => {
+    writeJson(LAMP_KEY, lampOn, safeSession())
+  }, [lampOn])
   const [activeToy, setActiveToy] = useState<{ toy: RoomToy; key: number } | null>(null)
   const [toyLine, setToyLine] = useState<string | null>(null)
   const lineIndex = useRef<Record<string, number>>({})
@@ -78,7 +86,11 @@ export function MyRoom() {
     setBusy(true)
     try {
       await sky.cancel()
-      setMessage('불빛을 거뒀어요. 밤하늘에서 내 불빛이 사라졌어요.')
+      setMessage(
+        sky.lightResting
+          ? '불빛을 거뒀어요. 새 불빛은 잠시 뒤에 다시 보탤 수 있어요.'
+          : '불빛을 거뒀어요. 밤하늘에서 내 불빛이 사라졌어요.',
+      )
     } catch (err) {
       setMessage(errorMessage(err))
     } finally {

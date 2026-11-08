@@ -21,7 +21,7 @@ import { softVibrate } from '../lib/haptics'
 import { describeRemaining, lightOpacity, remainingMs } from '../lib/lightRules'
 import { assignWindows, PHASE_WORD } from '../lib/skyScene'
 import { playSound } from '../lib/sound'
-import { errorMessage, FireflyError } from '../services/backend'
+import { errorMessage, FireflyError, toFireflyError } from '../services/backend'
 import type { ConnectionState, SharedLight } from '../types'
 
 const CONNECTION_TEXT: Partial<Record<ConnectionState, string>> = {
@@ -123,10 +123,21 @@ export function Home() {
     }
   }
 
+  // 새 불빛 쉬는 시간(30초)에는 서버에 보내지 않고, 오류 대신 언제 다시 되는지 알려 준다
+  const LIGHT_REST_TEXT = '새 불빛은 잠시 뒤에 다시 보탤 수 있어요.'
+  function lightErrorMessage(err: unknown, fromMind: boolean) {
+    if (toFireflyError(err).code === 'rate_limited') return fromMind ? `마음을 날려 보냈어요. ${LIGHT_REST_TEXT}` : LIGHT_REST_TEXT
+    return errorMessage(err)
+  }
+
   async function addLight(fromMind = false) {
     if (isPrivate) {
       fromMindRef.current = fromMind
       setPrivateInfoOpen(true)
+      return
+    }
+    if (sky.lightResting) {
+      setMessage(fromMind ? `마음을 날려 보냈어요. ${LIGHT_REST_TEXT}` : LIGHT_REST_TEXT)
       return
     }
     setBusy('light')
@@ -134,7 +145,7 @@ export function Home() {
     try {
       await publishLight(fromMind)
     } catch (err) {
-      setMessage(errorMessage(err))
+      setMessage(lightErrorMessage(err, fromMind))
     } finally {
       setBusy(null)
     }
@@ -152,7 +163,7 @@ export function Home() {
       await publishLight(fromMind)
     } catch (err) {
       setPrivateInfoOpen(false)
-      setMessage(errorMessage(err))
+      setMessage(lightErrorMessage(err, fromMind))
     } finally {
       setBusy(null)
     }
@@ -180,7 +191,7 @@ export function Home() {
     setBusy('light')
     try {
       await sky.cancel()
-      setMessage('내 불빛을 거뒀어요.')
+      setMessage(sky.lightResting ? `내 불빛을 거뒀어요. ${LIGHT_REST_TEXT}` : '내 불빛을 거뒀어요.')
     } catch (err) {
       setMessage(errorMessage(err))
     } finally {
@@ -366,8 +377,8 @@ export function Home() {
                   불빛 거두기
                 </Button>
               ) : (
-                <Button onClick={() => void addLight()} disabled={busy !== null || sky.loading}>
-                  {busy === 'light' ? '보태는 중…' : '불빛 하나 보태기'}
+                <Button onClick={() => void addLight()} disabled={busy !== null || sky.loading || sky.lightResting}>
+                  {sky.lightResting ? '잠시 쉬는 중' : busy === 'light' ? '보태는 중…' : '불빛 하나 보태기'}
                 </Button>
               )}
               <Button
