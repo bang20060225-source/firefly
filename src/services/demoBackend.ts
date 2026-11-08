@@ -1,15 +1,16 @@
 // DEMO 백엔드: 실제 서버 없이 이 기기 안에서만 동작한다.
 // · 다른 사용자는 존재하지 않는다. 가짜 사용자 불빛을 절대 만들지 않는다.
 // · 밤하늘에는 '내가 남긴 DEMO 불빛'만 보인다.
-// · 규칙(120분, 30초 간격, 중복 방지, 비공개 전환 시 취소)은 서버와 같게 흉내 낸다.
+// · 규칙(120분, 새 불빛은 10분에 10번까지·온기는 30초 간격, 중복 방지, 비공개 전환 시 취소)은 서버와 같게 흉내 낸다.
 
 import {
   AMBIENT_COOLDOWN_MS,
   cooldownLeftMs,
   isExpired,
   LIGHT_DURATION_MS,
-  LIGHT_PUBLISH_COOLDOWN_MS,
   randomSkyPosition,
+  takePublishSlot,
+  type PublishWindow,
 } from '../lib/lightRules'
 import { readJson, removeKey, writeJson } from '../lib/storage'
 import type { AgeCategory, AgeGate, SharedLight, UserSettings } from '../types'
@@ -20,23 +21,27 @@ type DemoState = {
   ageGate: AgeGate | null
   settings: UserSettings
   myLight: SharedLight | null
-  lastLightAt: number | null
+  lightWindow: PublishWindow
   lastWaveAt: number | null
 }
 
 const KEY = 'demo-state'
 const SESSION_KEY = 'demo-session'
 
+function emptyState(): DemoState {
+  return {
+    ageGate: null,
+    settings: { ...DEFAULT_SETTINGS },
+    myLight: null,
+    lightWindow: { start: null, count: 0 },
+    lastWaveAt: null,
+  }
+}
+
 function load(): DemoState {
-  return (
-    readJson<DemoState>(KEY) ?? {
-      ageGate: null,
-      settings: { ...DEFAULT_SETTINGS },
-      myLight: null,
-      lastLightAt: null,
-      lastWaveAt: null,
-    }
-  )
+  const saved = readJson<Partial<DemoState>>(KEY)
+  // 예전 버전에서 저장한 값에는 lightWindow 가 없을 수 있다
+  return saved ? { ...emptyState(), ...saved, lightWindow: saved.lightWindow ?? { start: null, count: 0 } } : emptyState()
 }
 
 function newId(): string {
@@ -152,9 +157,8 @@ export function createDemoBackend(): FireflyBackend & { grantDemoTestConsent(): 
       if (existing) {
         return { status: 'already_active', light: existing, serverTime: new Date(now).toISOString() }
       }
-      if (cooldownLeftMs(state.lastLightAt, LIGHT_PUBLISH_COOLDOWN_MS, now) > 0) {
-        throw new FireflyError('rate_limited')
-      }
+      const slot = takePublishSlot(state.lightWindow, now)
+      if (!slot) throw new FireflyError('rate_limited')
 
       const position = randomSkyPosition()
       const light: SharedLight = {
@@ -164,7 +168,7 @@ export function createDemoBackend(): FireflyBackend & { grantDemoTestConsent(): 
         expiresAt: new Date(now + LIGHT_DURATION_MS).toISOString(),
       }
       state.myLight = light
-      state.lastLightAt = now
+      state.lightWindow = slot
       save()
       emit({ type: 'light_added', light })
       return { status: 'published', light, serverTime: new Date(now).toISOString() }
@@ -217,13 +221,7 @@ export function createDemoBackend(): FireflyBackend & { grantDemoTestConsent(): 
       removeMyLight()
       removeKey(KEY)
       removeKey(SESSION_KEY)
-      state = {
-        ageGate: null,
-        settings: { ...DEFAULT_SETTINGS },
-        myLight: null,
-        lastLightAt: null,
-        lastWaveAt: null,
-      }
+      state = emptyState()
     },
   }
 }

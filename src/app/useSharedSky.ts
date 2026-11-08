@@ -1,6 +1,6 @@
 // 공동 밤하늘 상태: 불빛 목록, 내 불빛, 온기 파동, 실시간 연결
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { activeLights, AMBIENT_COOLDOWN_MS, AMBIENT_WAVE_DURATION_MS, LIGHT_PUBLISH_COOLDOWN_MS } from '../lib/lightRules'
+import { activeLights, AMBIENT_COOLDOWN_MS, AMBIENT_WAVE_DURATION_MS } from '../lib/lightRules'
 import { readJson, safeSession, writeJson } from '../lib/storage'
 import type { FireflyBackend, SkyEvent } from '../services/backend'
 import { errorDetail, toFireflyError, type FireflyErrorCode } from '../services/backend'
@@ -26,8 +26,6 @@ export type SkyState = {
   sendWave: () => Promise<void>
   /** 온기를 보낸 뒤 30초 동안 true */
   waveResting: boolean
-  /** 새 불빛을 보탠 뒤 30초 동안 true. 그사이 불빛을 거두면, 새 불빛은 쉬는 시간이 끝난 뒤에 보탤 수 있다 */
-  lightResting: boolean
   /** 다른 사람의 불빛·온기가 닿았을 때의 조용한 알림 */
   notice: { key: number; text: string } | null
   /** 화면에만 파동을 그린다 (서버에 보내지 않음). DEMO 예시 화면용 */
@@ -47,22 +45,6 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
   const offsetRef = useRef(0)
   const seenWaves = useRef(new Set<string>())
   const now = useCallback(() => Date.now() + offsetRef.current, [])
-
-  // 새 불빛 쉬는 시간. 서버는 한 사람이 새 불빛을 30초에 한 번만 보태게 한다 (밤하늘 도배 방지).
-  // 불빛을 거두자마자 다시 보태면 서버가 거절하므로, 그동안 버튼도 쉬게 해서 오류가 뜨지 않게 한다.
-  // 화면을 옮겨 다녀도 유지되도록 여기(앱 전체 상태)에 둔다.
-  const [lightRestUntil, setLightRestUntil] = useState(0) // 이 기기 시계 기준(ms)
-  const noteMyLight = useCallback((light: SharedLight) => {
-    // 서버가 불빛을 만든 시각 + 30초 (+ 시계 오차 여유 1초)를 이 기기 시계로 바꾼다
-    const until = Date.parse(light.createdAt) - offsetRef.current + LIGHT_PUBLISH_COOLDOWN_MS + 1000
-    if (until > Date.now()) setLightRestUntil((current) => Math.max(current, until))
-  }, [])
-  useEffect(() => {
-    const left = lightRestUntil - Date.now()
-    if (left <= 0) return
-    const timer = window.setTimeout(() => setLightRestUntil(0), left)
-    return () => window.clearTimeout(timer)
-  }, [lightRestUntil])
 
   // 다른 사람의 불빛·온기가 닿았을 때 잠깐 보여주는 조용한 알림 (누구인지, 몇 명인지는 말하지 않는다)
   const [notice, setNotice] = useState<{ key: number; text: string } | null>(null)
@@ -89,7 +71,6 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
       offsetRef.current = Date.parse(snapshot.serverTime) - Date.now()
       setLights(snapshot.lights)
       setMyLight(mine)
-      if (mine) noteMyLight(mine)
       setError(null)
       setErrorInfo(null)
     } catch (err) {
@@ -99,7 +80,7 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
     } finally {
       setLoading(false)
     }
-  }, [backend, noteMyLight])
+  }, [backend])
 
   const playWave = useCallback((waveId: string) => {
     if (seenWaves.current.has(waveId)) return
@@ -175,7 +156,6 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
     void backend
       .publishLight('auto')
       .then((result) => {
-        noteMyLight(result.light)
         setMyLight(result.light)
         setLights((current) => [...current.filter((l) => l.id !== result.light.id), result.light])
       })
@@ -186,22 +166,14 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
 
   const publish = useCallback(async () => {
     publishingRef.current = true
-    const result = await backend
-      .publishLight('manual')
-      .catch((err: unknown) => {
-        // 서버가 "새 불빛은 잠시 뒤에"라고 하면 버튼도 같이 쉬게 한다 (예: 새로고침 직후라 쉬는 시간을 몰랐을 때)
-        if (toFireflyError(err).code === 'rate_limited') setLightRestUntil(Date.now() + LIGHT_PUBLISH_COOLDOWN_MS)
-        throw err
-      })
-      .finally(() => {
-        publishingRef.current = false
-      })
+    const result = await backend.publishLight('manual').finally(() => {
+      publishingRef.current = false
+    })
     offsetRef.current = Date.parse(result.serverTime) - Date.now()
-    noteMyLight(result.light)
     setMyLight(result.light)
     setLights((current) => [...current.filter((l) => l.id !== result.light.id), result.light])
     return { status: result.status, light: result.light }
-  }, [backend, noteMyLight])
+  }, [backend])
 
   const cancel = useCallback(async () => {
     const id = myLight?.id
@@ -255,7 +227,6 @@ export function useSharedSky(backend: FireflyBackend, settings: UserSettings | n
     cancel,
     sendWave,
     waveResting: waveRestUntil > 0,
-    lightResting: lightRestUntil > Date.now(),
     notice,
     playWave,
   }

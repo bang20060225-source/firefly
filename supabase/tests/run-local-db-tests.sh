@@ -22,7 +22,13 @@ run() { psql -q -X -v ON_ERROR_STOP=1 -d "$DB" "$@"; }
 echo "▶ Supabase 흉내 스키마 적용 (로컬 테스트 전용)"
 run -f supabase/tests/local-supabase-shim.sql
 
+HAS_PG_CRON=$(run -tA -c "select count(*) from pg_available_extensions where name = 'pg_cron'")
 for migration in supabase/migrations/*.sql; do
+  # 만료 불빛 정리 일정(pg_cron)은 Supabase 서버 전용이라, pg_cron 이 없는 로컬에서는 건너뛴다
+  if grep -qiE "^\s*create extension.*pg_cron" "$migration" && [ "$HAS_PG_CRON" = "0" ]; then
+    echo "▶ 건너뜀 (pg_cron 없음 · Supabase 전용): $migration"
+    continue
+  fi
   echo "▶ 마이그레이션 적용: $migration"
   run -f "$migration"
 done
