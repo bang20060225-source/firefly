@@ -90,20 +90,63 @@ function ensureEngine(): Engine | null {
   return engine
 }
 
+// ── 아이폰 대응 ─────────────────────────────────────────────
+
+/** 사파리(아이폰)에만 있는 '소리 종류' 설정 */
+type AudioSessionLike = { type: string }
+let playbackSession = false
+
+/**
+ * 아이폰은 '무음 모드'일 때 웹에서 만든 소리(Web Audio)를 알림음처럼 취급해서 꺼 버린다.
+ * 사용자가 소리를 켜 둔 동안에는 음악 앱처럼 '재생' 소리라고 알려서, 무음 모드에서도 들리게 한다.
+ * 소리를 모두 끄면 원래대로(auto) 돌려 놓는다.
+ * 사파리 16.4 이상에만 있는 설정이라, 다른 브라우저(안드로이드 등)에서는 아무 일도 하지 않는다.
+ */
+export function setPlaybackSession(on: boolean): void {
+  if (playbackSession === on || typeof navigator === 'undefined') return
+  const audioSession = (navigator as Navigator & { audioSession?: AudioSessionLike }).audioSession
+  if (!audioSession) return
+  try {
+    audioSession.type = on ? 'playback' : 'auto'
+    playbackSession = on
+  } catch {
+    // 바꿀 수 없으면 그대로 둔다
+  }
+}
+
+/**
+ * 브라우저가 '사용자가 직접 한 동작'으로 인정해서 소리를 허락하는 순간들.
+ * 아이폰은 손가락을 뗄 때(touchend)와 클릭만 인정하고, 손가락을 대는 순간(pointerdown)은 인정하지 않는다.
+ */
+const GESTURE_EVENTS = ['touchend', 'pointerup', 'click', 'keydown'] as const
+
+/** 사용자가 화면을 누를 때마다 handler 를 부른다. 돌려받은 함수를 부르면 그만 듣는다 */
+export function onUserGesture(handler: () => void): () => void {
+  // capture: 화면의 다른 요소가 이벤트를 멈추더라도(stopPropagation) 먼저 듣는다
+  for (const type of GESTURE_EVENTS) window.addEventListener(type, handler, { capture: true, passive: true })
+  return () => {
+    for (const type of GESTURE_EVENTS) window.removeEventListener(type, handler, { capture: true })
+  }
+}
+
+let primed = false
+
 /**
  * 사용자가 화면을 누를 때 불러서 소리를 낼 수 있는 상태로 만든다.
- * (iOS 사파리는 누르는 순간에만 소리를 허락하므로, 아주 짧은 무음을 한 번 재생한다)
+ * 아이폰은 이 순간에만 소리를 허락하므로, 소리 장치를 깨우고 아주 짧은 무음을 한 번 재생한다.
+ * (전화·잠금 화면 뒤에 아이폰이 소리 장치를 멈춰 두었을 때도 다시 깨운다)
  */
 export function unlockAudio(): void {
   const e = ensureEngine()
-  if (!e) return
+  if (!e || (primed && e.ctx.state === 'running')) return
   try {
-    if (e.ctx.state !== 'running') void e.ctx.resume().catch(() => {})
+    void e.ctx.resume().catch(() => {})
     const silent = e.ctx.createBuffer(1, 1, 22050)
     const source = e.ctx.createBufferSource()
     source.buffer = silent
     source.connect(e.ctx.destination)
     source.start(0)
+    primed = true
   } catch {
     // 무시
   }
@@ -113,7 +156,9 @@ export function playSfx(kind: SfxKind): void {
   const e = ensureEngine()
   if (!e) return
   try {
-    if (e.ctx.state === 'suspended') void e.ctx.resume().catch(() => {})
+    // 효과음은 사용자가 켜 둔 경우에만 불린다 → 아이폰 무음 모드에서도 들리게
+    setPlaybackSession(true)
+    if (e.ctx.state !== 'running') void e.ctx.resume().catch(() => {})
     scheduleSfx(kind, e.ctx, e.sfx, e.ctx.currentTime + 0.01, Math.random)
   } catch {
     // 소리를 낼 수 없는 환경이면 조용히 넘어간다
@@ -164,7 +209,11 @@ function scheduleMusic() {
   catchUp(composer, now)
   const buses: Buses = { dry: session.dry, send: session.send, noise: e.noise }
   for (const event of compose(composer, now + LOOKAHEAD, musicPhase, Math.random)) {
-    renderAmbientEvent(e.ctx, event, buses, Math.random)
+    try {
+      renderAmbientEvent(e.ctx, event, buses, Math.random)
+    } catch {
+      // 음 하나를 못 만들어도 나머지 음악은 계속 흐르게 한다
+    }
   }
 }
 
@@ -174,6 +223,7 @@ export function startMusic(phase: DayPhase): void {
   const e = ensureEngine()
   if (!e || musicOn) return
   musicOn = true
+  setPlaybackSession(true)
   if (e.ctx.state !== 'running') void e.ctx.resume().catch(() => {})
   session = openSession(e)
   composer = initialState(e.ctx.currentTime + 0.1)
@@ -213,10 +263,10 @@ if (typeof document !== 'undefined') {
         if (document.visibilityState === 'hidden') void e.ctx.suspend().catch(() => {})
       }, 500)
     } else {
-      void e.ctx
-        .resume()
-        .then(() => fadeMaster(e, MUSIC_LEVEL, 1.5))
-        .catch(() => {})
+      // 볼륨은 바로 되돌려 둔다. 아이폰이 화면을 누르기 전까지 소리 장치를 깨워 주지 않더라도,
+      // 다음에 누르는 순간(unlockAudio) 원래 크기로 다시 들린다.
+      fadeMaster(e, MUSIC_LEVEL, 1.5)
+      if (e.ctx.state !== 'running') void e.ctx.resume().catch(() => {})
     }
   })
 }
