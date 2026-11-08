@@ -96,7 +96,7 @@ export function Settings() {
             />
             <Toggle
               label="효과음"
-              description="불빛을 보태거나 온기를 보낼 때, 방 안 물건을 누를 때 작은 소리가 나요. 홈과 나의 방의 '소리' 버튼은 배경음과 효과음을 함께 켜고 꺼요. 휴대폰이 무음 모드면 들리지 않을 수 있어요."
+              description="불빛을 보태거나 온기를 보낼 때, 방 안 물건을 누를 때 작은 소리가 나요. 홈과 나의 방의 '소리' 버튼은 배경음과 효과음을 함께 켜고 꺼요. 소리가 들리지 않으면 기기 음량을 확인해 주세요."
               checked={settings.soundEnabled}
               onChange={(value) => {
                 if (value) playSound('tap', true)

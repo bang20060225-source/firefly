@@ -97,17 +97,18 @@ export function renderBell(
 
 // 부드러운 피아노(펠트 피아노)의 음색: 기본음 위로 배음이 빠르게 작아진다.
 // 한 번 만든 파형은 같은 오디오 장치에서 다시 쓴다.
-const pianoWaves = new WeakMap<BaseAudioContext, PeriodicWave>()
-function pianoWave(ctx: BaseAudioContext): PeriodicWave {
-  let wave = pianoWaves.get(ctx)
-  if (!wave) {
-    const partials = [0, 1, 0.42, 0.2, 0.11, 0.06, 0.035, 0.02, 0.012]
-    wave = ctx.createPeriodicWave(
-      partials.map(() => 0),
-      partials,
-    )
-    pianoWaves.set(ctx, wave)
+// 사파리가 확실히 받아들이도록 Float32Array 로 넘기고, 그래도 못 만들면 null (→ 비슷하게 부드러운 기본 파형)
+const pianoWaves = new WeakMap<BaseAudioContext, PeriodicWave | null>()
+function pianoWave(ctx: BaseAudioContext): PeriodicWave | null {
+  if (pianoWaves.has(ctx)) return pianoWaves.get(ctx) ?? null
+  let wave: PeriodicWave | null = null
+  try {
+    const partials = new Float32Array([0, 1, 0.42, 0.2, 0.11, 0.06, 0.035, 0.02, 0.012])
+    wave = ctx.createPeriodicWave(new Float32Array(partials.length), partials)
+  } catch {
+    wave = null
   }
+  pianoWaves.set(ctx, wave)
   return wave
 }
 
@@ -121,7 +122,9 @@ export function renderPiano(ctx: BaseAudioContext, buses: Buses, ev: PianoEvent)
   const release = t + Math.max(0.05, ev.duration)
 
   const osc = ctx.createOscillator()
-  osc.setPeriodicWave(pianoWave(ctx))
+  const wave = pianoWave(ctx)
+  if (wave) osc.setPeriodicWave(wave)
+  else osc.type = 'triangle'
   osc.frequency.value = frequency
 
   const tone = ctx.createBiquadFilter()

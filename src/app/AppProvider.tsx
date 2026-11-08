@@ -1,7 +1,15 @@
 // 앱 전체 상태: 시작 단계, 연령 확인, 설정, 밤하늘
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CONSENT_VERSION } from '../config'
-import { isMusicPlaying, setMusicPhase, startMusic, stopMusic, unlockAudio } from '../lib/audio/engine'
+import {
+  isMusicPlaying,
+  onUserGesture,
+  setMusicPhase,
+  setPlaybackSession,
+  startMusic,
+  stopMusic,
+  unlockAudio,
+} from '../lib/audio/engine'
 import { playSound } from '../lib/sound'
 import { readJson, removeKey, writeJson } from '../lib/storage'
 import { toFireflyError, type FireflyErrorCode } from '../services/backend'
@@ -167,6 +175,8 @@ export function AppProvider({ children, allowDemoTestConsent }: { children: Reac
     writeJson(MUSIC_KEY, on)
     setMusicEnabledState(on)
     if (on) {
+      // 아이폰 무음 모드에서도 들리도록, 소리를 내기 전에 먼저 알린다
+      setPlaybackSession(true)
       unlockAudio()
       startMusic(dayPhaseRef.current)
     } else {
@@ -179,28 +189,21 @@ export function AppProvider({ children, allowDemoTestConsent }: { children: Reac
     if (musicEnabled) setMusicPhase(dayPhase)
   }, [musicEnabled, dayPhase])
 
-  // 지난번에 배경음을 켜 두었다면, 브라우저 정책상 화면을 처음 누르는 순간에 다시 시작한다
-  useEffect(() => {
-    if (!musicEnabled || isMusicPlaying()) return
-    const start = () => {
-      unlockAudio()
-      startMusic(dayPhaseRef.current)
-    }
-    window.addEventListener('pointerdown', start, { once: true })
-    window.addEventListener('keydown', start, { once: true })
-    return () => {
-      window.removeEventListener('pointerdown', start)
-      window.removeEventListener('keydown', start)
-    }
-  }, [musicEnabled])
-
-  // 효과음을 켜 두었다면, 화면을 누를 때 소리를 낼 수 있는 상태로 준비해 둔다 (iOS 대비)
+  // 배경음이나 효과음을 켜 두었다면
+  //  · 아이폰 무음 모드에서도 들리게 한다 (모두 끄면 원래대로)
+  //  · 화면을 누를 때마다 소리 장치가 깨어 있는지 확인한다.
+  //    브라우저는 화면을 누르기 전엔 소리를 허락하지 않고, 아이폰은 전화·잠금 화면 뒤에 소리 장치를 멈춰 두기도 한다.
+  //  · 지난번에 배경음을 켜 두었다면 처음 누르는 순간 다시 튼다
   const soundEnabled = settings?.soundEnabled ?? false
   useEffect(() => {
-    if (!soundEnabled) return
-    window.addEventListener('pointerdown', unlockAudio, { passive: true })
-    return () => window.removeEventListener('pointerdown', unlockAudio)
-  }, [soundEnabled])
+    const anySound = musicEnabled || soundEnabled
+    setPlaybackSession(anySound)
+    if (!anySound) return
+    return onUserGesture(() => {
+      unlockAudio()
+      if (musicEnabled && !isMusicPlaying()) startMusic(dayPhaseRef.current)
+    })
+  }, [musicEnabled, soundEnabled])
 
   // 스피커 버튼: 처음엔 둘 다 꺼져 있다(갑자기 소리가 나지 않게). 한 번 누르면 배경음과 효과음이 함께 켜진다.
   const setSoundOn = useCallback(
