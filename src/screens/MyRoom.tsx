@@ -86,11 +86,7 @@ export function MyRoom() {
     setBusy(true)
     try {
       await sky.cancel()
-      setMessage(
-        sky.lightResting
-          ? '불빛을 거뒀어요. 새 불빛은 잠시 뒤에 다시 보탤 수 있어요.'
-          : '불빛을 거뒀어요. 밤하늘에서 내 불빛이 사라졌어요.',
-      )
+      setMessage('불빛을 거뒀어요. 밤하늘에서 내 불빛이 사라졌어요.')
     } catch (err) {
       setMessage(errorMessage(err))
     } finally {

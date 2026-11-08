@@ -198,7 +198,7 @@ firefly/
 | --- | --- | --- |
 | 불빛 120분 유지, 마지막 15분 페이드 | `src/lib/lightRules.ts` | `publish_light()` — 서버 시간 기준 |
 | 사용자당 활성 불빛 1개, 만료 시간 연장 없음 | — | `presence_lights.owner_id unique` + `publish_light()` |
-| 새 불빛 30초 간격, 온기 30초 간격 | 버튼 잠시 쉬기 | `user_rate_limits` + 서버 함수 |
+| 새 불빛은 10분에 10번까지 (거두고 바로 다시 보태기 가능), 온기 30초 간격 | 다정한 안내 · 온기 버튼 잠시 쉬기 | `user_rate_limits` + 서버 함수 |
 | 공개 데이터에 사용자 ID 없음 | — | `presence_lights`는 직접 읽기 불가, `_light_public_json()`만 공개 |
 | private 전환 시 공개 불빛 취소 | — | `user_settings` 트리거 |
 | 만 14세 미만 이용 불가 | 계정을 만들지 않음 | `has_service_access()`, 테이블 제약 |

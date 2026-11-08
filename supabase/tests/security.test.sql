@@ -159,13 +159,24 @@ select t.ok((select count(*) from public.presence_lights where owner_id = 'aaaaa
 set role authenticated;
 select t.act_as('aaaaaaaa-0000-0000-0000-000000000001');
 select t.ok(public.cancel_my_light() = true, '내 불빛은 즉시 취소할 수 있다');
-select t.fails($$select public.publish_light('manual')$$, 'rate_limited', '취소 직후 바로 다시 남기면 막힌다 (30초)');
 reset role;
 select t.ok((select event from realtime.messages order by id desc limit 1) = 'light_removed', '취소하면 다른 사람에게도 사라짐을 알린다');
-update public.user_rate_limits set last_light_at = now() - interval '31 seconds';
 set role authenticated;
 select t.act_as('aaaaaaaa-0000-0000-0000-000000000001');
-select t.ok(public.publish_light('manual') ->> 'status' = 'published', '30초가 지나면 다시 남길 수 있다');
+select t.ok(public.publish_light('manual') ->> 'status' = 'published', '불빛을 거두고 바로 다시 남길 수 있다 (기다리는 시간 없음)');
+reset role;
+-- 껐다 켰다 도배: 10분 동안 새 불빛 10번을 이미 채운 상태를 만든다
+update public.user_rate_limits set light_window_count = 10 where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+set role authenticated;
+select t.act_as('aaaaaaaa-0000-0000-0000-000000000001');
+select t.ok(public.cancel_my_light() = true, '다시 거둘 수 있다');
+select t.fails($$select public.publish_light('manual')$$, 'rate_limited', '10분 안에 11번째 새 불빛은 막힌다 (껐다 켰다 도배 방지)');
+reset role;
+update public.user_rate_limits set light_window_start = now() - interval '10 minutes 1 second'
+  where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+set role authenticated;
+select t.act_as('aaaaaaaa-0000-0000-0000-000000000001');
+select t.ok(public.publish_light('manual') ->> 'status' = 'published', '10분이 지나면 다시 처음부터 센다');
 update public.user_settings set visibility_mode = 'auto', auto_consent_at = now();
 select t.ok(public.publish_light('auto') ->> 'status' = 'already_active', '자동 공개도 기존 불빛이 있으면 새로 만들지 않는다');
 update public.user_settings set visibility_mode = 'manual';

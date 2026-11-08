@@ -112,21 +112,18 @@ export function Home() {
       startRising(result.light)
       playSound('light', effectsOn)
     }
+    // 남은 시간은 바로 위 '내 불빛이 떠 있어요 · 약 2시간 뒤 사라져요' 줄이 알려 주므로 여기서는 되풀이하지 않는다
     if (result.status === 'already_active') {
       setMessage(fromMind ? '마음을 날려 보냈어요. 내 불빛은 이미 밤하늘에 떠 있어요.' : '이미 내 불빛이 밤하늘에 떠 있어요.')
     } else {
-      setMessage(
-        fromMind
-          ? '마음을 날려 보냈어요. 작은 불빛이 되어 2시간 동안 머물다 사라져요.'
-          : '불빛 하나를 보탰어요. 2시간 동안 조용히 머물다 사라져요.',
-      )
+      setMessage(fromMind ? '마음을 날려 보냈어요. 작은 불빛이 되어 떠올랐어요.' : '불빛 하나를 보탰어요.')
     }
   }
 
-  // 새 불빛 쉬는 시간(30초)에는 서버에 보내지 않고, 오류 대신 언제 다시 되는지 알려 준다
-  const LIGHT_REST_TEXT = '새 불빛은 잠시 뒤에 다시 보탤 수 있어요.'
-  function lightErrorMessage(err: unknown, fromMind: boolean) {
-    if (toFireflyError(err).code === 'rate_limited') return fromMind ? `마음을 날려 보냈어요. ${LIGHT_REST_TEXT}` : LIGHT_REST_TEXT
+  // 불빛은 거두고 바로 다시 보탤 수 있다. 다만 짧은 시간에 껐다 켰다를 아주 여러 번 하면
+  // (10분에 10번 넘게) 서버가 잠시 쉬게 하는데, 그때도 오류 대신 다정하게 알려 준다.
+  function lightErrorMessage(err: unknown) {
+    if (toFireflyError(err).code === 'rate_limited') return '불빛을 짧은 시간에 여러 번 보탰어요. 잠시 뒤에 다시 보탤 수 있어요.'
     return errorMessage(err)
   }
 
@@ -136,16 +133,12 @@ export function Home() {
       setPrivateInfoOpen(true)
       return
     }
-    if (sky.lightResting) {
-      setMessage(fromMind ? `마음을 날려 보냈어요. ${LIGHT_REST_TEXT}` : LIGHT_REST_TEXT)
-      return
-    }
     setBusy('light')
     setMessage(null)
     try {
       await publishLight(fromMind)
     } catch (err) {
-      setMessage(lightErrorMessage(err, fromMind))
+      setMessage(lightErrorMessage(err))
     } finally {
       setBusy(null)
     }
@@ -163,7 +156,7 @@ export function Home() {
       await publishLight(fromMind)
     } catch (err) {
       setPrivateInfoOpen(false)
-      setMessage(lightErrorMessage(err, fromMind))
+      setMessage(lightErrorMessage(err))
     } finally {
       setBusy(null)
     }
@@ -191,7 +184,7 @@ export function Home() {
     setBusy('light')
     try {
       await sky.cancel()
-      setMessage(sky.lightResting ? `내 불빛을 거뒀어요. ${LIGHT_REST_TEXT}` : '내 불빛을 거뒀어요.')
+      setMessage('내 불빛을 거뒀어요.')
     } catch (err) {
       setMessage(errorMessage(err))
     } finally {
@@ -377,8 +370,8 @@ export function Home() {
                   불빛 거두기
                 </Button>
               ) : (
-                <Button onClick={() => void addLight()} disabled={busy !== null || sky.loading || sky.lightResting}>
-                  {sky.lightResting ? '잠시 쉬는 중' : busy === 'light' ? '보태는 중…' : '불빛 하나 보태기'}
+                <Button onClick={() => void addLight()} disabled={busy !== null || sky.loading}>
+                  {busy === 'light' ? '보태는 중…' : '불빛 하나 보태기'}
                 </Button>
               )}
               <Button

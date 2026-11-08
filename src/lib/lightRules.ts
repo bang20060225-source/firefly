@@ -9,8 +9,24 @@ const MINUTE = 60 * 1000
 export const LIGHT_DURATION_MS = 120 * MINUTE
 /** 사라지기 전 서서히 흐려지는 시간 (마지막 15분) */
 export const LIGHT_FADE_MS = 15 * MINUTE
-/** 새 불빛을 다시 남기기까지의 최소 간격 — 도배 방지 (30초) */
-export const LIGHT_PUBLISH_COOLDOWN_MS = 30 * 1000
+/**
+ * 새 불빛 도배 방지: 10분 동안 새 불빛은 10번까지.
+ * 기다리는 시간은 없어서, 불빛을 거두고 바로 다시 보탤 수 있다. 껐다 켰다를 아주 여러 번 할 때만 잠시 쉰다.
+ */
+export const LIGHT_PUBLISH_LIMIT = 10
+export const LIGHT_PUBLISH_WINDOW_MS = 10 * MINUTE
+
+/** 새 불빛을 센 기록 (이력이 아니라 '언제부터 몇 번'만 남긴다) */
+export type PublishWindow = { start: number | null; count: number }
+
+/** 새 불빛을 하나 더 보탤 수 있으면 보탠 뒤의 기록을, 아니면 null 을 돌려준다. 서버 publish_light 와 같은 규칙이다 */
+export function takePublishSlot(current: PublishWindow, nowMs: number): PublishWindow | null {
+  // 처음이거나 10분이 지났으면 새로 센다
+  if (current.start === null || nowMs - current.start >= LIGHT_PUBLISH_WINDOW_MS) return { start: nowMs, count: 1 }
+  if (current.count >= LIGHT_PUBLISH_LIMIT) return null
+  return { start: current.start, count: current.count + 1 }
+}
+
 /** 온기 퍼뜨리기 요청 간격 (30초) */
 export const AMBIENT_COOLDOWN_MS = 30 * 1000
 /** 온기 파동 애니메이션 길이 (약 5초) */

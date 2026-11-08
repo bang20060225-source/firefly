@@ -6,8 +6,12 @@ import {
   isExpired,
   LIGHT_DURATION_MS,
   LIGHT_FADE_MS,
+  LIGHT_PUBLISH_LIMIT,
+  LIGHT_PUBLISH_WINDOW_MS,
   lightOpacity,
   randomSkyPosition,
+  takePublishSlot,
+  type PublishWindow,
 } from './lightRules'
 import type { SharedLight } from '../types'
 
@@ -93,5 +97,31 @@ describe('요청 간격', () => {
   it('30초 안에는 기다려야 하고, 30초가 지나면 가능하다', () => {
     expect(cooldownLeftMs(created, 30_000, created + 10_000)).toBe(20_000)
     expect(cooldownLeftMs(created, 30_000, created + 30_000)).toBe(0)
+  })
+})
+
+describe('새 불빛 도배 방지 (10분에 10번까지)', () => {
+  const empty: PublishWindow = { start: null, count: 0 }
+
+  it('불빛을 거두고 바로 다시 보탤 수 있다 (기다리는 시간 없음)', () => {
+    const first = takePublishSlot(empty, created)
+    expect(first).toEqual({ start: created, count: 1 })
+    // 1초 뒤 거두고 다시 보태기
+    expect(takePublishSlot(first as PublishWindow, created + 1000)).toEqual({ start: created, count: 2 })
+  })
+
+  it('10분 안에 10번까지는 되고, 11번째는 잠시 쉰다', () => {
+    let w: PublishWindow | null = empty
+    for (let i = 0; i < LIGHT_PUBLISH_LIMIT; i++) {
+      w = takePublishSlot(w as PublishWindow, created + i * 1000)
+      expect(w).toBeTruthy()
+    }
+    expect(takePublishSlot(w as PublishWindow, created + 20_000)).toBeNull()
+  })
+
+  it('10분이 지나면 다시 처음부터 센다', () => {
+    const full: PublishWindow = { start: created, count: LIGHT_PUBLISH_LIMIT }
+    expect(takePublishSlot(full, created + LIGHT_PUBLISH_WINDOW_MS - 1)).toBeNull()
+    expect(takePublishSlot(full, created + LIGHT_PUBLISH_WINDOW_MS)).toEqual({ start: created + LIGHT_PUBLISH_WINDOW_MS, count: 1 })
   })
 })
